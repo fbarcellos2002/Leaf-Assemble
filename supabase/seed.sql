@@ -1,0 +1,2 @@
+-- Development seed data will be added alongside the inventory schema.
+-- Do not place real user credentials or secrets in this file.
