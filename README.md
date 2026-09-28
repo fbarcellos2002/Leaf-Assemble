@@ -22,6 +22,8 @@ npm run dev
 
 Preencha `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `NEXT_PUBLIC_SITE_URL` no `.env.local` ao conectar um projeto Supabase. A chave publishable pode ser usada no cliente com RLS. `SUPABASE_SECRET_KEY` (ou a chave antiga `SUPABASE_SERVICE_ROLE_KEY`) é necessária para cadastrar usuários e deve ficar somente no servidor, como variável sensível; nunca a exponha com o prefixo `NEXT_PUBLIC_`.
 
+Na tela de novo componente, informe fabricante e modelo/MPN e use **Buscar dados técnicos na internet** para consultar a ficha correspondente no Open Icecat. Crie uma conta gratuita no Open Icecat, gere um API token e configure `ICECAT_USERNAME` e `ICECAT_API_TOKEN` como variáveis privadas no `.env.local` e na Vercel; não use o prefixo `NEXT_PUBLIC_`. A busca é feita no servidor por fabricante e código exato, e a tela mantém um link para a ficha consultada. A cobertura depende dos fabricantes e produtos disponíveis no catálogo. Valores compatíveis com o Leaf Assemble são preenchidos nos campos conhecidos e os demais dados da ficha são guardados junto ao componente.
+
 O cadastro administrativo cria a conta com e-mail confirmado e senha inicial definida pelo administrador; esse fluxo não envia e-mail. Para fluxos futuros que enviem e-mails de autenticação, configure um servidor SMTP próprio em Authentication → Emails → SMTP Settings.
 
 Para o Supabase local, instale a Supabase CLI e execute:

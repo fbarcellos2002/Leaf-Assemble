@@ -93,14 +93,29 @@ const specSchemas = {
   }),
 } satisfies Record<ComponentCategory, z.ZodType>;
 
+const sourceDataSchema = z.record(z.string(), z.unknown());
+
 export type ComponentSpecs = {
   [Category in ComponentCategory]: z.infer<(typeof specSchemas)[Category]> & {
     category: Category;
+    sourceData?: z.infer<typeof sourceDataSchema>;
   };
 }[ComponentCategory];
 
 export function parseComponentSpecs(category: ComponentCategory, input: unknown) {
-  return specSchemas[category].safeParse(input);
+  const parsed = specSchemas[category].safeParse(input);
+  if (!parsed.success) return parsed;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return parsed;
+
+  const sourceData = (input as Record<string, unknown>).sourceData;
+  if (sourceData === undefined) return parsed;
+  const validatedSourceData = sourceDataSchema.safeParse(sourceData);
+  if (!validatedSourceData.success) return { success: false as const, error: validatedSourceData.error };
+
+  return {
+    success: true as const,
+    data: { ...parsed.data, sourceData: validatedSourceData.data },
+  };
 }
 
 export type SpecField = {

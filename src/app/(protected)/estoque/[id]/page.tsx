@@ -70,6 +70,28 @@ const specLabels: Record<string, string> = {
   tdpRatingW: "TDP suportado (W)",
 };
 
+const hiddenSpecKeys = new Set([
+  "lengthMm", "heightMm", "gpuMaxLengthMm", "cpuCoolerMaxHeightMm",
+  "tdpW", "tdpRatingW", "recommendedPsuW", "wattageW", "powerConnectors", "connectors", "voltage",
+]);
+
+function isHiddenExternalFeature(name: string, group: string) {
+  const normalized = `${name} ${group}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return /height|width|length|dimension|altura|largura|comprimento|dimens|power|energy|tdp|watt|voltage|current|energia|potencia|consumo|tensao/i.test(normalized);
+}
+
+function safeIcecatUrl(value: unknown) {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && (url.hostname === "icecat.biz" || url.hostname.endsWith(".icecat.biz"))
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function formatSpec(value: unknown) {
   if (typeof value === "boolean") return value ? "Sim" : "Não";
   if (Array.isArray(value)) return value.join(", ");
@@ -97,6 +119,20 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
   const specs = component.specs && typeof component.specs === "object" && !Array.isArray(component.specs)
     ? component.specs as Record<string, unknown>
     : {};
+  const sourceData = specs.sourceData && typeof specs.sourceData === "object" && !Array.isArray(specs.sourceData)
+    ? specs.sourceData as Record<string, unknown>
+    : null;
+  const sourceFeatures = Array.isArray(sourceData?.features)
+    ? sourceData.features.flatMap((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+      const feature = item as { group?: unknown; name?: unknown; value?: unknown };
+      const name = typeof feature.name === "string" ? feature.name : "";
+      const group = typeof feature.group === "string" ? feature.group : "";
+      const value = typeof feature.value === "string" ? feature.value : "";
+      return name && value && !isHiddenExternalFeature(name, group) ? [{ name, group, value }] : [];
+    })
+    : [];
+  const sourceUrl = safeIcecatUrl(sourceData?.sourceUrl);
 
   return (
     <div>
@@ -131,7 +167,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
         <h2 className="text-xl font-semibold text-[#153b2a]">Especificações</h2>
         {Object.keys(specs).length ? (
           <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(specs).map(([key, value]) => (
+            {Object.entries(specs).filter(([key]) => key !== "sourceData" && !hiddenSpecKeys.has(key)).map(([key, value]) => (
               <div key={key} className="border-b border-[#edf1ea] pb-3">
                 <dt className="text-xs font-semibold tracking-wide text-[#718276] uppercase">{specLabels[key] ?? key}</dt>
                 <dd className="mt-1 text-sm font-medium text-[#294333]">{formatSpec(value)}</dd>
@@ -142,6 +178,31 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
           <p className="mt-3 text-sm leading-6 text-[#718276]">Nenhuma especificação técnica foi registrada.</p>
         )}
       </section>
+
+      {sourceData ? (
+        <section className="mt-7 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div>
+              <h2 className="text-xl font-semibold text-[#153b2a]">Dados técnicos consultados online</h2>
+              <p className="mt-1 text-sm text-[#718276]">{typeof sourceData.title === "string" ? sourceData.title : "Ficha do fabricante"} · {typeof sourceData.provider === "string" ? sourceData.provider : ""}</p>
+            </div>
+            {sourceUrl ? <a className="text-sm font-semibold text-[#315b3c] underline" href={sourceUrl} target="_blank" rel="noreferrer">Abrir ficha de origem</a> : null}
+          </div>
+          {typeof sourceData.summary === "string" && sourceData.summary ? <p className="mt-4 max-w-3xl whitespace-pre-line text-sm leading-6 text-[#607266]">{sourceData.summary}</p> : null}
+          {sourceFeatures.length ? (
+            <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+              {sourceFeatures.map((feature, index) => (
+                <div key={`${feature.name}-${index}`} className="border-b border-[#edf1ea] pb-3">
+                  {feature.group ? <dt className="text-[10px] font-semibold tracking-wide text-[#89958d] uppercase">{feature.group}</dt> : null}
+                  <dt className="mt-1 text-xs font-semibold tracking-wide text-[#718276]">{feature.name}</dt>
+                  <dd className="mt-1 text-sm font-medium text-[#294333]">{feature.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : <p className="mt-4 text-sm text-[#718276]">A ficha consultada não trouxe outros detalhes técnicos disponíveis para exibição.</p>}
+          <p className="mt-5 text-xs text-[#89958d]">A ficha pode não cobrir todos os produtos ou campos. Dimensões e informações de energia ficam ocultas nesta tela.</p>
+        </section>
+      ) : null}
 
       <section className="mt-7 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-end justify-between gap-4">
