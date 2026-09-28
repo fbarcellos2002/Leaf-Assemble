@@ -17,7 +17,7 @@ export default async function ForgotPasswordPage({ searchParams }: Props) {
           Recuperar senha
         </h1>
         <p className="mt-2 leading-7 text-[#647568]">
-          Informe o e-mail da sua conta. Se ela existir, enviaremos as instruções para redefinir a senha.
+          Informe o e-mail da sua conta. Por segurança, não confirmamos se o endereço está cadastrado; confira também a pasta de spam.
         </p>
 
         {status === "sent" ? (
@@ -27,7 +27,11 @@ export default async function ForgotPasswordPage({ searchParams }: Props) {
         ) : null}
         {error ? (
           <p role="alert" className="mt-6 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">
-            {error === "setup" ? "A conexão com o Supabase ainda não está configurada." : "Informe um e-mail válido."}
+            {error === "send-failed"
+              ? "Não foi possível enviar o e-mail agora. Confira a configuração de e-mail do Supabase e tente novamente."
+              : error === "setup"
+                ? "A conexão com o Supabase ainda não está configurada neste ambiente."
+                : "Informe um e-mail válido."}
           </p>
         ) : null}
 

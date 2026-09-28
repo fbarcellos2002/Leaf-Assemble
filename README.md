@@ -20,7 +20,9 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Preencha `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `NEXT_PUBLIC_SITE_URL` no `.env.local` ao conectar um projeto Supabase. A chave publishable pode ser usada no cliente com RLS. `SUPABASE_SERVICE_ROLE_KEY` é necessária para convites de usuários e deve ficar somente no servidor; nunca a exponha com o prefixo `NEXT_PUBLIC_`.
+Preencha `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `NEXT_PUBLIC_SITE_URL` no `.env.local` ao conectar um projeto Supabase. A chave publishable pode ser usada no cliente com RLS. `SUPABASE_SECRET_KEY` (ou a chave antiga `SUPABASE_SERVICE_ROLE_KEY`) é necessária para convites de usuários e deve ficar somente no servidor, como variável sensível; nunca a exponha com o prefixo `NEXT_PUBLIC_`.
+
+Para enviar convites e recuperação de senha a endereços fora da equipe da organização Supabase, configure um servidor SMTP próprio em Authentication → Emails → SMTP Settings. Depois, defina o Site URL e permita a URL `/auth/callback` em Authentication → URL Configuration.
 
 Para o Supabase local, instale a Supabase CLI e execute:
 

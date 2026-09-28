@@ -22,6 +22,22 @@ const updateUserSchema = z.object({
   isActive: z.enum(["true", "false"]).transform((value) => value === "true"),
 });
 
+function getInviteErrorCode(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("already") || normalized.includes("registered") || normalized.includes("exists")) {
+    return "email-exists";
+  }
+  if (
+    normalized.includes("email address not authorized") ||
+    normalized.includes("smtp") ||
+    normalized.includes("rate limit") ||
+    normalized.includes("email rate")
+  ) {
+    return "email-delivery";
+  }
+  return "invite-failed";
+}
+
 export async function inviteUser(formData: FormData) {
   await requireAdminProfile();
   const parsed = createUserSchema.safeParse({
@@ -31,26 +47,41 @@ export async function inviteUser(formData: FormData) {
   });
   if (!parsed.success) redirect("/usuarios?error=invalid-input");
 
-  const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
-    data: { name: parsed.data.name },
-    redirectTo: `${getSiteUrl()}/auth/callback?next=/dashboard`,
-  });
-  if (error || !data.user) redirect("/usuarios?error=invite-failed");
-
-  const supabase = await createClient();
-  const { error: profileError } = await supabase.rpc("admin_update_profile", {
-    p_auth_user_id: data.user.id,
-    p_name: parsed.data.name,
-    p_role: parsed.data.role,
-    p_is_active: true,
-    p_action: "user.created",
-  });
-
-  if (profileError) {
-    await admin.auth.admin.deleteUser(data.user.id);
-    redirect("/usuarios?error=profile-failed");
+  if (!process.env.SUPABASE_SECRET_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    redirect("/usuarios?error=invite-key");
   }
+
+  let failure: string | null = null;
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
+      data: { name: parsed.data.name },
+      redirectTo: `${getSiteUrl()}/auth/callback?next=/dashboard`,
+    });
+
+    if (error) {
+      failure = getInviteErrorCode(error.message);
+    } else if (!data.user) {
+      failure = "invite-failed";
+    } else {
+      const supabase = await createClient();
+      const { error: profileError } = await supabase.rpc("admin_update_profile", {
+        p_auth_user_id: data.user.id,
+        p_name: parsed.data.name,
+        p_role: parsed.data.role,
+        p_is_active: true,
+        p_action: "user.created",
+      });
+
+      if (profileError) {
+        failure = "profile-failed";
+      }
+    }
+  } catch {
+    failure = "invite-failed";
+  }
+
+  if (failure) redirect(`/usuarios?error=${failure}`);
 
   revalidatePath("/usuarios");
   redirect("/usuarios?notice=invited");

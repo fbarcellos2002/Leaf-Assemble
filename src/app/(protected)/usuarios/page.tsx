@@ -7,8 +7,11 @@ type Props = { searchParams: Promise<{ error?: string; notice?: string }> };
 
 const errorMessages: Record<string, string> = {
   "invalid-input": "Confira o nome, o e-mail e o perfil selecionado.",
-  "invite-failed": "Não foi possível enviar o convite. Verifique a configuração de e-mail do Supabase.",
-  "profile-failed": "Não foi possível configurar o perfil do usuário. Verifique o estado da conta antes de reenviar o convite.",
+  "invite-key": "Configure a chave secreta do Supabase na Vercel com o nome SUPABASE_SECRET_KEY (ou SUPABASE_SERVICE_ROLE_KEY), marcada como Sensitive. Essa chave não pode ter o prefixo NEXT_PUBLIC_.",
+  "email-exists": "Já existe uma conta com esse e-mail. Peça à pessoa para usar “Esqueci minha senha” ou confira a conta em Authentication → Users no Supabase.",
+  "email-delivery": "O Supabase não autorizou o envio. Configure um SMTP próprio em Authentication → Emails → SMTP Settings e tente novamente.",
+  "invite-failed": "Não foi possível enviar o convite. Confira a chave secreta, o SMTP e a URL de retorno permitida no Supabase.",
+  "profile-failed": "A conta foi criada e o convite pode ter sido enviado, mas não conseguimos aplicar o perfil escolhido. Confira a conta na lista e ajuste o perfil antes de reenviar.",
   "update-failed": "Não foi possível salvar. Verifique se o administrador protegido continua ativo.",
 };
 
@@ -35,7 +38,7 @@ export default async function UsersPage({ searchParams }: Props) {
 
       <section className="mt-8 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-semibold text-[#153b2a]">Convidar usuário</h2>
-        <form action={inviteUser} className="mt-5 grid gap-4 md:grid-cols-4">
+        <form action={inviteUser} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className="grid gap-2 text-sm font-medium text-[#294333]">
             Nome
             <input className="h-11 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="name" required minLength={2} maxLength={80} />

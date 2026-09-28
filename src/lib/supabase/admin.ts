@@ -10,7 +10,7 @@ const serviceRoleKeySchema = z.string().min(1);
 export function createAdminClient() {
   const { url } = getSupabaseEnv();
   const serviceRoleKey = serviceRoleKeySchema.parse(
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
   );
 
   return createClient(url, serviceRoleKey, {
