@@ -20,9 +20,9 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Preencha `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `NEXT_PUBLIC_SITE_URL` no `.env.local` ao conectar um projeto Supabase. A chave publishable pode ser usada no cliente com RLS. `SUPABASE_SECRET_KEY` (ou a chave antiga `SUPABASE_SERVICE_ROLE_KEY`) é necessária para convites de usuários e deve ficar somente no servidor, como variável sensível; nunca a exponha com o prefixo `NEXT_PUBLIC_`.
+Preencha `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `NEXT_PUBLIC_SITE_URL` no `.env.local` ao conectar um projeto Supabase. A chave publishable pode ser usada no cliente com RLS. `SUPABASE_SECRET_KEY` (ou a chave antiga `SUPABASE_SERVICE_ROLE_KEY`) é necessária para cadastrar usuários e deve ficar somente no servidor, como variável sensível; nunca a exponha com o prefixo `NEXT_PUBLIC_`.
 
-Para enviar convites e recuperação de senha a endereços fora da equipe da organização Supabase, configure um servidor SMTP próprio em Authentication → Emails → SMTP Settings. Depois, defina o Site URL e permita a URL `/auth/callback` em Authentication → URL Configuration.
+O cadastro administrativo cria a conta com e-mail confirmado e senha inicial definida pelo administrador; esse fluxo não envia e-mail. Para fluxos futuros que enviem e-mails de autenticação, configure um servidor SMTP próprio em Authentication → Emails → SMTP Settings.
 
 Para o Supabase local, instale a Supabase CLI e execute:
 
@@ -33,7 +33,7 @@ npx supabase db reset
 
 As migrations versionadas ficam em `supabase/migrations/`. Elas criam perfis e papéis, administração de usuários e auditoria, estoque por categoria/lote e builds com reservas atômicas. Não há dados fictícios de inventário. O fluxo de imagens já tem bucket privado e políticas no banco; o formulário de envio de arquivos ainda precisa ser concluído.
 
-Para o primeiro acesso, crie os usuários por convite no Supabase Auth ou no fluxo de convite da aplicação depois de promover o primeiro administrador. A aplicação não cria senhas próprias nem permite cadastro público. Para escolher o primeiro administrador, crie o usuário em Auth e promova seu perfil no SQL Editor:
+Para o primeiro acesso, crie o usuário pelo Supabase Auth e promova seu perfil no SQL Editor. Depois, administradores podem cadastrar contas pela aplicação. Não existe cadastro público. Para escolher o primeiro administrador, crie o usuário em Auth e promova seu perfil:
 
 ```sql
 update public.profiles
@@ -52,7 +52,7 @@ npm run build
 
 ## Escopo implementado
 
-- Login por convite, recuperação de senha, perfis, papéis e proteção do último administrador.
+- Login, cadastro administrativo de usuários, perfis, papéis e proteção do último administrador.
 - Gestão de usuários e trilha de auditoria para operações administrativas e de estoque.
 - Catálogo com especificações por categoria, lotes, recebimento de quantidades e estoque reservado/usado.
 - Regras de compatibilidade com estados compatível, aviso, incompatível e desconhecido.
@@ -64,7 +64,7 @@ npm run build
 - Formulário de upload e visualização de fotos dos componentes (a estrutura privada de Storage já existe).
 - Simulador 2D para organizar as peças visualmente.
 - Cobertura de testes de domínio e integração; pipeline de CI já executa `npm run test` quando testes forem adicionados.
-- Configurar um projeto Supabase real, aplicar as migrations, configurar URLs de autenticação e convidar/promover o primeiro administrador.
+- Configurar um projeto Supabase real, aplicar as migrations, configurar URLs de autenticação e promover o primeiro administrador.
 
 A estimativa de builds depende da qualidade e completude das especificações cadastradas. Dados desconhecidos não são tratados como confirmação de compatibilidade; buscas que atinjam o limite computacional são identificadas na tela.
 

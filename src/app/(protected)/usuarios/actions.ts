@@ -6,13 +6,13 @@ import { z } from "zod";
 
 import { requireAdminProfile } from "@/lib/auth/profile";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSiteUrl } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 const roleSchema = z.enum(["ADMIN", "VISITANTE"]);
 const createUserSchema = z.object({
   email: z.email(),
   name: z.string().trim().min(2).max(80),
+  password: z.string().min(12).max(128),
   role: roleSchema,
 });
 const updateUserSchema = z.object({
@@ -22,47 +22,42 @@ const updateUserSchema = z.object({
   isActive: z.enum(["true", "false"]).transform((value) => value === "true"),
 });
 
-function getInviteErrorCode(message: string) {
+function getCreateErrorCode(message: string) {
   const normalized = message.toLowerCase();
   if (normalized.includes("already") || normalized.includes("registered") || normalized.includes("exists")) {
     return "email-exists";
   }
-  if (
-    normalized.includes("email address not authorized") ||
-    normalized.includes("smtp") ||
-    normalized.includes("rate limit") ||
-    normalized.includes("email rate")
-  ) {
-    return "email-delivery";
-  }
-  return "invite-failed";
+  return "create-failed";
 }
 
-export async function inviteUser(formData: FormData) {
+export async function createUser(formData: FormData) {
   await requireAdminProfile();
   const parsed = createUserSchema.safeParse({
     email: formData.get("email"),
     name: formData.get("name"),
+    password: formData.get("password"),
     role: formData.get("role"),
   });
   if (!parsed.success) redirect("/usuarios?error=invalid-input");
 
   if (!process.env.SUPABASE_SECRET_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    redirect("/usuarios?error=invite-key");
+    redirect("/usuarios?error=admin-key");
   }
 
   let failure: string | null = null;
   try {
     const admin = createAdminClient();
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
-      data: { name: parsed.data.name },
-      redirectTo: `${getSiteUrl()}/auth/callback?next=/dashboard`,
+    const { data, error } = await admin.auth.admin.createUser({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      email_confirm: true,
+      user_metadata: { name: parsed.data.name },
     });
 
     if (error) {
-      failure = getInviteErrorCode(error.message);
+      failure = getCreateErrorCode(error.message);
     } else if (!data.user) {
-      failure = "invite-failed";
+      failure = "create-failed";
     } else {
       const supabase = await createClient();
       const { error: profileError } = await supabase.rpc("admin_update_profile", {
@@ -75,16 +70,21 @@ export async function inviteUser(formData: FormData) {
 
       if (profileError) {
         failure = "profile-failed";
+        try {
+          await admin.auth.admin.deleteUser(data.user.id);
+        } catch {
+          // Keep the original profile error visible; a leftover account has no elevated role.
+        }
       }
     }
   } catch {
-    failure = "invite-failed";
+    failure = "create-failed";
   }
 
   if (failure) redirect(`/usuarios?error=${failure}`);
 
   revalidatePath("/usuarios");
-  redirect("/usuarios?notice=invited");
+  redirect("/usuarios?notice=created");
 }
 
 export async function updateUser(formData: FormData) {
@@ -110,4 +110,29 @@ export async function updateUser(formData: FormData) {
   revalidatePath("/usuarios");
   revalidatePath("/dashboard");
   redirect("/usuarios?notice=updated");
+}
+
+function getDeleteErrorCode(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("própria conta")) return "delete-self";
+  if (normalized.includes("protegido")) return "delete-protected";
+  if (normalized.includes("ao menos um administrador ativo")) return "delete-last-admin";
+  if (normalized.includes("não encontrado")) return "delete-not-found";
+  return "delete-failed";
+}
+
+export async function deleteUser(formData: FormData) {
+  await requireAdminProfile();
+  const parsed = z.uuid().safeParse(formData.get("authUserId"));
+  if (!parsed.success) redirect("/usuarios?error=invalid-input");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_delete_user", {
+    p_auth_user_id: parsed.data,
+  });
+
+  if (error) redirect(`/usuarios?error=${getDeleteErrorCode(error.message)}`);
+  revalidatePath("/usuarios");
+  revalidatePath("/auditoria");
+  redirect("/usuarios?notice=deleted");
 }

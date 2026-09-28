@@ -5,11 +5,12 @@ type Props = { searchParams: Promise<{ action?: string; entity?: string }> };
 
 const actionLabels: Record<string, string> = {
   "auth.login": "Login",
-  "user.created": "Usuário convidado",
+  "user.created": "Usuário cadastrado",
   "user.updated": "Usuário atualizado",
   "user.activated": "Usuário ativado",
   "user.deactivated": "Usuário desativado",
   "user.role_changed": "Perfil alterado",
+  "user.deleted": "Usuário removido",
   "component.created": "Componente cadastrado",
   "inventory.received": "Entrada de estoque",
   "inventory.reserved": "Estoque reservado",
