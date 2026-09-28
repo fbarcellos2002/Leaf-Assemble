@@ -178,7 +178,10 @@ export async function GET(request: NextRequest) {
   const categoryResult = componentCategorySchema.safeParse(params.get("category"));
   const brand = params.get("manufacturer")?.trim() ?? "";
   const productCode = params.get("model")?.trim() ?? "";
-  if (!categoryResult.success || brand.length < 1 || brand.length > 100 || productCode.length < 1 || productCode.length > 140) {
+  const icecatId = params.get("icecatId")?.trim() ?? "";
+  const hasIcecatId = /^\d{1,15}$/.test(icecatId) && Number(icecatId) > 0;
+  const hasBrandAndCode = brand.length >= 1 && brand.length <= 100 && productCode.length >= 1 && productCode.length <= 140;
+  if (!categoryResult.success || (!hasIcecatId && !hasBrandAndCode)) {
     return NextResponse.json({ error: "invalid-input" }, { status: 400 });
   }
 
@@ -192,8 +195,12 @@ export async function GET(request: NextRequest) {
   icecatUrl.searchParams.set("shopname", username);
   icecatUrl.searchParams.set("lang", "BR");
   icecatUrl.searchParams.set("content", "");
-  icecatUrl.searchParams.set("Brand", brand);
-  icecatUrl.searchParams.set("ProductCode", productCode.toUpperCase());
+  if (hasIcecatId) {
+    icecatUrl.searchParams.set("icecat_id", icecatId);
+  } else {
+    icecatUrl.searchParams.set("Brand", brand);
+    icecatUrl.searchParams.set("ProductCode", productCode.toUpperCase());
+  }
 
   try {
     const response = await fetch(icecatUrl, {
@@ -212,13 +219,14 @@ export async function GET(request: NextRequest) {
     const features = collectFeatures(data);
     const description = asObject(generalInfo.Description);
     const summary = asObject(generalInfo.SummaryDescription);
-    const title = asText(generalInfo.Title) || asText(generalInfo.ProductName) || productCode;
+    const resolvedProductCode = asText(generalInfo.BrandPartCode) || productCode || icecatId;
+    const title = asText(generalInfo.Title) || asText(generalInfo.ProductName) || resolvedProductCode;
     const providerSourceUrl = asText(description?.URL);
-    const sourceUrl = safeIcecatProductUrl(providerSourceUrl, productCode);
+    const sourceUrl = safeIcecatProductUrl(providerSourceUrl, resolvedProductCode);
     const image = asObject(data.Image);
     const sourceData = {
       provider: "Icecat Open Catalog",
-      productCode: asText(generalInfo.BrandPartCode) || productCode,
+      productCode: resolvedProductCode,
       brand: asText(asObject(generalInfo.BrandInfo)?.BrandName) || asText(generalInfo.Brand) || brand,
       title,
       icecatId: generalInfo.IcecatId ?? null,

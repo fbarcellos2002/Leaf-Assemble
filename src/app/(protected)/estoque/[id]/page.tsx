@@ -183,7 +183,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
         <section className="mt-7 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div>
-              <h2 className="text-xl font-semibold text-[#153b2a]">Dados técnicos consultados online</h2>
+              <h2 className="text-xl font-semibold text-[#153b2a]">Specs Icecat</h2>
               <p className="mt-1 text-sm text-[#718276]">{typeof sourceData.title === "string" ? sourceData.title : "Ficha do fabricante"} · {typeof sourceData.provider === "string" ? sourceData.provider : ""}</p>
             </div>
             {sourceUrl ? <a className="text-sm font-semibold text-[#315b3c] underline" href={sourceUrl} target="_blank" rel="noreferrer">Abrir ficha de origem</a> : null}
@@ -200,7 +200,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
               ))}
             </dl>
           ) : <p className="mt-4 text-sm text-[#718276]">A ficha consultada não trouxe outros detalhes técnicos disponíveis para exibição.</p>}
-          <p className="mt-5 text-xs text-[#89958d]">A ficha pode não cobrir todos os produtos ou campos. Dimensões e informações de energia ficam ocultas nesta tela.</p>
+          <p className="mt-5 text-xs text-[#89958d]">Dados fornecidos “como estão”; confira as especificações antes de usá-las para confirmar compatibilidade. Consulte o <a className="underline" href="https://icecat.biz/en/menu/disclaimer" target="_blank" rel="noreferrer">aviso AS IS do Icecat</a>. A ficha pode não cobrir todos os produtos ou campos. Dimensões e informações de energia ficam ocultas nesta tela.</p>
         </section>
       ) : null}
 
