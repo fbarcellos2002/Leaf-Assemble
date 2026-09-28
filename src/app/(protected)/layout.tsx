@@ -4,6 +4,7 @@ import Link from "next/link";
 import { requireActiveProfile } from "@/lib/auth/profile";
 import { signOut } from "@/app/login/actions";
 import { DatabaseLatency } from "./database-latency";
+import { SessionInactivityTimeout } from "./session-inactivity-timeout";
 
 const navigation = [
   { href: "/dashboard", label: "Visão geral" },
@@ -19,6 +20,7 @@ export default async function ProtectedLayout({
 
   return (
     <div className="min-h-screen bg-[#f5f7f2] text-[#16271e]">
+      <SessionInactivityTimeout authUserId={profile.auth_user_id} />
       <header className="border-b border-[#dfe7dc] bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 md:px-8 xl:flex-row xl:items-center xl:justify-between xl:gap-5 xl:py-4">
           <Link href="/dashboard" className="flex w-fit items-center gap-3">

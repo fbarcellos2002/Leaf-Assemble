@@ -16,8 +16,10 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
 
 const errorMessages: Record<string, string> = {
   "invalid-input": "Confira os dados informados. A senha precisa ter pelo menos 12 caracteres.",
-  "admin-key": "Configure SUPABASE_SECRET_KEY (ou SUPABASE_SERVICE_ROLE_KEY) como Sensitive na Vercel. Não use o prefixo NEXT_PUBLIC_.",
+  "admin-key": "Configure SUPABASE_SECRET_KEY (ou SUPABASE_SERVICE_ROLE_KEY) no .env.local para desenvolvimento e como variável Sensitive na Vercel. Nunca use o prefixo NEXT_PUBLIC_.",
   "email-exists": "Já existe uma conta com esse e-mail. Use outro identificador ou edite a conta existente.",
+  "auth-rate-limit": "O Supabase limitou temporariamente os cadastros. Aguarde um pouco e tente novamente.",
+  "auth-database": "O Supabase Auth recusou o cadastro ao gravar o usuário. Confira se as migrations de perfis estão aplicadas e consulte os logs do servidor.",
   "create-failed": "Não foi possível cadastrar a conta. Confira a chave administrativa do Supabase e tente novamente.",
   "profile-failed": "A conta Auth foi iniciada, mas o perfil não foi configurado. Atualize a página e confira a lista antes de tentar novamente.",
   "update-failed": "Não foi possível salvar. Verifique se o administrador protegido continua ativo.",
@@ -28,52 +30,18 @@ const errorMessages: Record<string, string> = {
   "delete-failed": "Não foi possível remover a conta. Verifique se ela não é proprietária de arquivos no Supabase Storage.",
 };
 
-const actionLabels: Record<string, string> = {
-  "auth.login": "acessou o sistema",
-  "user.created": "cadastrou o usuário",
-  "user.updated": "editou o usuário",
-  "user.activated": "ativou a conta",
-  "user.deactivated": "desativou a conta",
-  "user.role_changed": "alterou o perfil do usuário",
-  "user.deleted": "removeu o usuário",
-};
-
 function formatDate(value: string | null) {
   return value ? dateFormatter.format(new Date(value)) : "Nunca acessou";
-}
-
-function userSnapshot(value: unknown) {
-  if (!value || typeof value !== "object") return null;
-  const snapshot = value as { name?: unknown; email?: unknown };
-  const name = typeof snapshot.name === "string" ? snapshot.name : null;
-  const email = typeof snapshot.email === "string" ? snapshot.email : null;
-  if (!name && !email) return null;
-  return [name, email].filter(Boolean).join(" · ");
 }
 
 export default async function UsersPage({ searchParams }: Props) {
   await requireAdminProfile();
   const { error, notice } = await searchParams;
   const supabase = await createClient();
-  const [{ data: profiles, error: profilesError }, { data: userLogs, error: logsError }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, auth_user_id, email, name, role, is_active, is_protected, created_at, last_login_at")
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("audit_logs")
-      .select("id, user_id, action, entity_id, old_data, new_data, created_at")
-      .eq("entity_type", "profile")
-      .order("created_at", { ascending: false })
-      .limit(12),
-  ]);
-
-  const actorIds = [...new Set((userLogs ?? []).flatMap((log) => log.user_id ? [log.user_id] : []))];
-  const { data: actors } = actorIds.length
-    ? await supabase.from("profiles").select("id, name").in("id", actorIds)
-    : { data: [] };
-  const actorById = new Map((actors ?? []).map((actor) => [actor.id, actor.name]));
-  const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, auth_user_id, email, name, role, is_active, is_protected, created_at, last_login_at")
+    .order("created_at", { ascending: false });
 
   return (
     <div>
@@ -178,33 +146,6 @@ export default async function UsersPage({ searchParams }: Props) {
         </div>
       </section>
 
-      <section className="mt-8 overflow-hidden rounded-3xl border border-[#dce6d8] bg-white shadow-sm">
-        <div className="border-b border-[#e7ede4] px-5 py-5 sm:px-8">
-          <h2 className="text-xl font-semibold text-[#153b2a]">Atividade recente de usuários</h2>
-          <p className="mt-1 text-sm text-[#718276]">Quem realizou cada ação e qual conta foi afetada.</p>
-        </div>
-        {logsError ? <p role="alert" className="px-5 py-6 text-sm text-[#8d3c32] sm:px-8">Não foi possível carregar a atividade recente.</p> : (
-          <div className="divide-y divide-[#edf1ea]">
-            {(userLogs ?? []).map((log) => {
-              const targetProfile = log.entity_id ? profileById.get(log.entity_id) : undefined;
-              const target = targetProfile
-                ? `${targetProfile.name} · ${targetProfile.email}`
-                : userSnapshot(log.new_data) ?? userSnapshot(log.old_data) ?? "Conta de usuário";
-              return (
-                <article key={log.id} className="grid gap-1 px-5 py-4 sm:px-8 lg:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1.3fr)_auto] lg:items-center">
-                  <p className="break-words text-sm font-medium text-[#294333]">
-                    {actorById.get(log.user_id ?? "") ?? "Administrador removido"}
-                    <span className="font-normal text-[#718276]"> {actionLabels[log.action] ?? log.action}</span>
-                  </p>
-                  <p className="break-words text-sm text-[#607266]">{target}</p>
-                  <time className="text-xs text-[#89958d]" dateTime={log.created_at}>{formatDate(log.created_at)}</time>
-                </article>
-              );
-            })}
-            {!userLogs?.length ? <p className="px-5 py-8 text-sm text-[#718276] sm:px-8">Nenhuma atividade registrada.</p> : null}
-          </div>
-        )}
-      </section>
     </div>
   );
 }

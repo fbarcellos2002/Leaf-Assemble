@@ -22,10 +22,17 @@ const updateUserSchema = z.object({
   isActive: z.enum(["true", "false"]).transform((value) => value === "true"),
 });
 
-function getCreateErrorCode(message: string) {
-  const normalized = message.toLowerCase();
+function getCreateErrorCode(error: { message?: string; code?: string; status?: number }) {
+  const normalized = `${error.code ?? ""} ${error.message ?? ""}`.toLowerCase();
   if (normalized.includes("already") || normalized.includes("registered") || normalized.includes("exists")) {
     return "email-exists";
+  }
+  if (error.status === 401 || error.status === 403 || normalized.includes("invalid_api_key")) {
+    return "admin-key";
+  }
+  if (error.status === 429) return "auth-rate-limit";
+  if (normalized.includes("database error") || normalized.includes("unexpected_failure")) {
+    return "auth-database";
   }
   return "create-failed";
 }
@@ -55,7 +62,12 @@ export async function createUser(formData: FormData) {
     });
 
     if (error) {
-      failure = getCreateErrorCode(error.message);
+      console.error("Supabase Auth user creation failed", {
+        code: error.code,
+        status: error.status,
+        name: error.name,
+      });
+      failure = getCreateErrorCode(error);
     } else if (!data.user) {
       failure = "create-failed";
     } else {
@@ -69,6 +81,11 @@ export async function createUser(formData: FormData) {
       });
 
       if (profileError) {
+        console.error("Supabase profile setup after user creation failed", {
+          code: profileError.code,
+          details: profileError.details,
+          hint: profileError.hint,
+        });
         failure = "profile-failed";
         try {
           await admin.auth.admin.deleteUser(data.user.id);
@@ -77,7 +94,10 @@ export async function createUser(formData: FormData) {
         }
       }
     }
-  } catch {
+  } catch (error) {
+    console.error("Unexpected error while creating a user", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
     failure = "create-failed";
   }
 

@@ -1,6 +1,7 @@
 import Image from "next/image";
 
 import { signIn } from "./actions";
+import { ClearSessionActivity } from "./clear-session-activity";
 
 type LoginPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -11,6 +12,7 @@ const messages: Record<string, string> = {
   "invalid-input": "Informe um e-mail válido e a sua senha.",
   setup: "A conexão com o Supabase ainda não foi configurada neste ambiente.",
   inactive: "Esta conta está inativa. Peça ajuda a um administrador.",
+  "session-timeout": "Você foi desconectado após 30 minutos sem atividade.",
   forbidden: "Seu perfil não tem permissão para acessar essa área.",
 };
 
@@ -19,6 +21,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <main className="relative isolate flex min-h-screen min-h-svh items-center justify-center bg-[#eef5e9] px-4 py-8 sm:px-6">
+      <ClearSessionActivity />
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -left-24 -top-28 size-72 rounded-full bg-[#d7e9cc] opacity-70 blur-3xl sm:size-96" />
         <div className="absolute -bottom-36 -right-24 size-80 rounded-full bg-[#dcebd5] opacity-80 blur-3xl sm:size-[28rem]" />

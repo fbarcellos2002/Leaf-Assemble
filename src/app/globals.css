@@ -29,3 +29,7 @@ select,
 textarea {
   max-width: 100%;
 }
+
+button:not(:disabled) {
+  cursor: pointer;
+}
