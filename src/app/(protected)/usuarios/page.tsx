@@ -15,7 +15,7 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
 });
 
 const errorMessages: Record<string, string> = {
-  "invalid-input": "Confira os dados informados. A senha precisa ter pelo menos 12 caracteres.",
+  "invalid-input": "Confira os dados. A senha precisa ter no mínimo 8 caracteres, uma letra maiúscula, um número e um caractere especial.",
   "admin-key": "Configure SUPABASE_SECRET_KEY (ou SUPABASE_SERVICE_ROLE_KEY) no .env.local para desenvolvimento e como variável Sensitive na Vercel. Nunca use o prefixo NEXT_PUBLIC_.",
   "email-exists": "Já existe uma conta com esse e-mail. Use outro identificador ou edite a conta existente.",
   "auth-rate-limit": "O Supabase limitou temporariamente os cadastros. Aguarde um pouco e tente novamente.",
@@ -64,7 +64,7 @@ export default async function UsersPage({ searchParams }: Props) {
 
       <section className="mt-8 rounded-3xl border border-[#dce6d8] bg-white p-5 shadow-sm sm:p-8">
         <h2 className="text-xl font-semibold text-[#153b2a]">Cadastrar usuário</h2>
-        <p className="mt-1 text-sm leading-6 text-[#718276]">Defina uma senha inicial com pelo menos 12 caracteres e compartilhe-a diretamente com a pessoa.</p>
+        <p className="mt-1 text-sm leading-6 text-[#718276]">A senha deve ter no mínimo 8 caracteres, uma letra maiúscula, um número e um caractere especial. Compartilhe-a diretamente com a pessoa.</p>
         <form action={createUser} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <label className="grid min-w-0 gap-2 text-sm font-medium text-[#294333]">
             Nome
@@ -76,7 +76,7 @@ export default async function UsersPage({ searchParams }: Props) {
           </label>
           <label className="grid min-w-0 gap-2 text-sm font-medium text-[#294333]">
             Senha inicial
-            <input className="h-11 w-full min-w-0 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="password" type="password" autoComplete="new-password" minLength={12} maxLength={128} required />
+            <input className="h-11 w-full min-w-0 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="password" type="password" autoComplete="new-password" minLength={8} maxLength={128} pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="Use no mínimo 8 caracteres, uma letra maiúscula, um número e um caractere especial." required />
           </label>
           <label className="grid min-w-0 gap-2 text-sm font-medium text-[#294333]">
             Perfil

@@ -12,7 +12,12 @@ const roleSchema = z.enum(["ADMIN", "VISITANTE"]);
 const createUserSchema = z.object({
   email: z.email(),
   name: z.string().trim().min(2).max(80),
-  password: z.string().min(12).max(128),
+  password: z.string()
+    .min(8)
+    .max(128)
+    .regex(/[A-Z]/)
+    .regex(/[0-9]/)
+    .regex(/[^A-Za-z0-9]/),
   role: roleSchema,
 });
 const updateUserSchema = z.object({
