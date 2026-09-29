@@ -14,12 +14,13 @@ export type CompatibilityPart = {
   lotId?: string;
   category: ComponentCategory;
   manufacturer: string;
+  name?: string | null;
   model: string;
   description?: string | null;
   specs: Record<string, unknown>;
 };
 
-const partName = (part: CompatibilityPart) => part.description?.trim() || `${part.manufacturer} ${part.model}`;
+const partName = (part: CompatibilityPart) => part.description?.trim() || part.name?.trim() || `${part.manufacturer} ${part.model}`;
 const textValue = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : undefined;
 const numberValue = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : undefined;
 const stringsValue = (value: unknown) =>

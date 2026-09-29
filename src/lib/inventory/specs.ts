@@ -25,7 +25,6 @@ const specSchemas = {
   CPU: z.object({
     socket: optionalText,
     microarchitecture: optionalText,
-    generation: optionalText,
     cores: optionalPositiveInteger,
     threads: optionalPositiveInteger,
     baseClockMhz: optionalPositiveNumber,
@@ -127,7 +126,6 @@ export const specFields: Record<ComponentCategory, SpecField[]> = {
   CPU: [
     { key: "socket", label: "Socket", type: "text", hint: "Ex.: AM5, LGA1700" },
     { key: "microarchitecture", label: "Microarquitetura", type: "text", hint: "Ex.: Zen 3, Raptor Lake" },
-    { key: "generation", label: "Geração", type: "text", hint: "Ex.: 3ª geração Intel Core" },
     { key: "cores", label: "Núcleos", type: "number" },
     { key: "threads", label: "Threads", type: "number" },
     { key: "baseClockMhz", label: "Clock base", type: "number", unit: "MHz" },

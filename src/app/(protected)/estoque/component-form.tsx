@@ -30,7 +30,8 @@ export function ComponentForm({ action }: Props) {
   const [category, setCategory] = useState<ComponentCategory>("CPU");
   const [specValues, setSpecValues] = useState<Record<string, string>>({});
   const [manufacturer, setManufacturer] = useState("");
-  const [model, setModel] = useState("");
+  const [name, setName] = useState("");
+  const [caseModel, setCaseModel] = useState("");
   const [quantity, setQuantity] = useState("");
   const [lotCode, setLotCode] = useState("");
   const [lotNotes, setLotNotes] = useState("");
@@ -51,7 +52,7 @@ export function ComponentForm({ action }: Props) {
     else if (field.type === "number-list") previewSpecs[field.key] = value.split(",").map(Number).filter(Number.isFinite);
     else previewSpecs[field.key] = value;
   }
-  const generatedDescription = generateComponentDescription(category, manufacturer, model, previewSpecs);
+  const generatedDescription = generateComponentDescription(category, manufacturer, name, previewSpecs, caseModel);
 
   function renderSpecField(field: (typeof specFields)[ComponentCategory][number]) {
     const value = specValues[field.key] ?? "";
@@ -153,9 +154,9 @@ export function ComponentForm({ action }: Props) {
       {formState.error ? (
         <p role="alert" className="rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">
           {formState.error === "invalid-input"
-            ? "Confira o fabricante, o modelo do processador (quando aplicável) e a quantidade. Os dados preenchidos foram mantidos."
+            ? "Confira o nome, o fabricante e a quantidade. Os dados preenchidos foram mantidos."
             : formState.error === "invalid-specs"
-              ? "Informe ao menos uma especificação relevante para gerar a descrição e revise os dados técnicos. Os dados preenchidos foram mantidos."
+              ? "Revise as especificações técnicas. Os dados preenchidos foram mantidos."
               : "Não foi possível cadastrar a peça. Os dados preenchidos foram mantidos; tente novamente."}
         </p>
       ) : null}
@@ -192,6 +193,32 @@ export function ComponentForm({ action }: Props) {
               onChange={(event) => setManufacturer(event.target.value)}
             />
           </div>
+          <label className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
+            Nome da peça <span className="text-xs font-normal text-[#718276]">Obrigatório; informe a identificação comercial, como Core i5-2500.</span>
+            <input
+              className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal"
+              name="name"
+              required
+              maxLength={140}
+              autoComplete="off"
+              placeholder={category === "CPU" ? "Ex.: Core i5-2500" : "Ex.: código ou identificação da peça"}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            {category === "CPU" ? (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-[#4b7b3b]">
+                <span className="w-full font-normal text-[#718276]">Consulte a ficha técnica do processador pelo nome.</span>
+                <a href={`https://www.intel.com/content/www/us/en/ark/search.html?q=${encodeURIComponent(name || "processor")}`} target="_blank" rel="noreferrer">Pesquisar no Intel ARK ↗</a>
+                <a href="https://www.amd.com/en/products/specifications/processors.html" target="_blank" rel="noreferrer">Pesquisar no catálogo AMD ↗</a>
+              </div>
+            ) : null}
+          </label>
+          {category === "CASE" ? (
+            <label className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
+              Modelo do gabinete (opcional)
+              <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="caseModel" maxLength={140} autoComplete="off" placeholder="Modelo do gabinete, se conhecido" value={caseModel} onChange={(event) => setCaseModel(event.target.value)} />
+            </label>
+          ) : null}
         </div>
       </section>
 
@@ -214,29 +241,9 @@ export function ComponentForm({ action }: Props) {
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold text-[#153b2a]">Descrição e modelo</h2>
-        <p className="mt-1 text-sm leading-6 text-[#718276]">A descrição é formada automaticamente com o fabricante e os dados técnicos mais úteis para identificar e montar esta peça.</p>
+        <h2 className="text-lg font-semibold text-[#153b2a]">Descrição automática</h2>
+        <p className="mt-1 text-sm leading-6 text-[#718276]">A descrição combina o nome da peça com fabricante e especificações técnicas importantes para a montagem.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
-            Modelo comercial {category === "CPU" ? "(obrigatório para processadores)" : "(opcional)"}
-            <input
-              className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal"
-              name="model"
-              required={category === "CPU"}
-              maxLength={140}
-              autoComplete="off"
-              placeholder={category === "CPU" ? "Ex.: Core i5-2500" : "Ex.: código ou modelo da peça"}
-              value={model}
-              onChange={(event) => setModel(event.target.value)}
-            />
-          </label>
-          {category === "CPU" ? (
-            <div className="sm:col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-[#4b7b3b]">
-              <span className="w-full font-normal text-[#718276]">Consulte a ficha do modelo no fabricante para preencher as especificações.</span>
-              <a href={`https://www.intel.com/content/www/us/en/ark/search.html?q=${encodeURIComponent(model || "processor")}`} target="_blank" rel="noreferrer">Pesquisar no Intel ARK ↗</a>
-              <a href="https://www.amd.com/en/products/specifications/processors.html" target="_blank" rel="noreferrer">Pesquisar no catálogo AMD ↗</a>
-            </div>
-          ) : null}
           <div className="sm:col-span-2 rounded-xl border border-[#dce6d8] bg-[#f7f9f5] p-4">
             <p className="text-xs font-semibold tracking-wide text-[#718276] uppercase">Descrição gerada</p>
             <p className="mt-2 font-medium text-[#294333]">{generatedDescription === manufacturer.trim() ? "Preencha as especificações principais para montar a descrição." : generatedDescription}</p>

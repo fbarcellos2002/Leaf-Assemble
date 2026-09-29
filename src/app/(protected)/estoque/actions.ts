@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireAdminProfile } from "@/lib/auth/profile";
-import { componentModelFallback, generateComponentDescription } from "@/lib/inventory/description";
+import { generateComponentDescription } from "@/lib/inventory/description";
 import {
   componentCategorySchema,
   parseComponentSpecs,
@@ -16,7 +16,8 @@ import { createClient } from "@/lib/supabase/server";
 
 const componentFieldsSchema = z.object({
   manufacturer: z.string().trim().min(1).max(100),
-  model: z.string().trim().max(140).optional(),
+  name: z.string().trim().min(1).max(140),
+  caseModel: z.string().trim().max(140).optional(),
   lotCode: z.string().trim().max(80).optional(),
   quantity: z.preprocess((value) => value === null ? undefined : value, z.coerce.number().int().min(0).max(100000)),
   notes: z.string().trim().max(500).optional(),
@@ -29,7 +30,8 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
   const category = componentCategorySchema.safeParse(formData.get("category"));
   const fields = componentFieldsSchema.safeParse({
     manufacturer: formData.get("manufacturer") ?? "",
-    model: formData.get("model") ?? "",
+    name: formData.get("name") ?? "",
+    caseModel: formData.get("caseModel") ?? "",
     lotCode: formData.get("lotCode") ?? "",
     quantity: formData.get("quantity"),
     notes: formData.get("notes") ?? "",
@@ -43,21 +45,20 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
   }
   const specs = parseComponentSpecs(category.data, rawSpecs);
   if (!specs.success) return { error: "invalid-specs" };
-  if (category.data === "CPU" && !fields.data.model) return { error: "invalid-input" };
-
   const description = generateComponentDescription(
     category.data,
     fields.data.manufacturer,
-    fields.data.model ?? "",
+    fields.data.name,
     specs.data as Record<string, unknown>,
+    fields.data.caseModel ?? "",
   );
-  if (description === fields.data.manufacturer) return { error: "invalid-specs" };
-  const model = fields.data.model || componentModelFallback(description, fields.data.manufacturer);
+  const model = category.data === "CASE" ? fields.data.caseModel || fields.data.name : fields.data.name;
 
   const supabase = await createClient();
   const { data: componentId, error } = await supabase.rpc("admin_create_component", {
     p_category: category.data,
     p_manufacturer: fields.data.manufacturer,
+    p_name: fields.data.name,
     p_model: model,
     p_description: description,
     p_specs: specs.data,

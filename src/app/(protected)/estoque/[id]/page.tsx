@@ -26,7 +26,6 @@ const categoryLabels: Record<string, string> = {
 const specLabels: Record<string, string> = {
   socket: "Socket",
   microarchitecture: "Microarquitetura",
-  generation: "Geração",
   cores: "Núcleos",
   threads: "Threads",
   baseClockMhz: "Clock base (MHz)",
@@ -96,7 +95,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
   const supabase = await createClient();
   const { data: component, error } = await supabase
     .from("components")
-    .select("id, category, manufacturer, model, description, specs, created_at, component_lots(id, lot_code, quantity_total, available_quantity, reserved_quantity, used_quantity, notes)")
+    .select("id, category, manufacturer, name, model, description, specs, created_at, component_lots(id, lot_code, quantity_total, available_quantity, reserved_quantity, used_quantity, notes)")
     .eq("id", id)
     .maybeSingle();
   if (error || !component) notFound();
@@ -109,13 +108,14 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
   const specs = component.specs && typeof component.specs === "object" && !Array.isArray(component.specs)
     ? component.specs as Record<string, unknown>
     : {};
+  const visibleSpecs = Object.entries(specs).filter(([key]) => key !== "generation");
   return (
     <div>
       <Link href="/estoque" className="text-sm font-medium text-[#4b7b3b] hover:underline">← Voltar ao estoque</Link>
       <div className="mt-5 flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
           <span className="rounded-full bg-[#eaf1e4] px-3 py-1.5 text-xs font-semibold text-[#315b3c]">{categoryLabels[component.category] ?? component.category}</span>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#153b2a] sm:text-4xl">{component.description || `${component.manufacturer} ${component.model}`}</h1>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#153b2a] sm:text-4xl">{component.description || component.name || `${component.manufacturer} ${component.model}`}</h1>
         </div>
       </div>
 
@@ -140,9 +140,9 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
 
       <section className="mt-7 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-semibold text-[#153b2a]">Especificações</h2>
-        {Object.keys(specs).length ? (
+        {visibleSpecs.length ? (
           <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(specs).map(([key, value]) => (
+            {visibleSpecs.map(([key, value]) => (
               <div key={key} className="border-b border-[#edf1ea] pb-3">
                 <dt className="text-xs font-semibold tracking-wide text-[#718276] uppercase">{specLabels[key] ?? key}</dt>
                 <dd className="mt-1 text-sm font-medium text-[#294333]">{formatSpec(value)}</dd>

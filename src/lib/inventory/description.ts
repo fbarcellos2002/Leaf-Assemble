@@ -43,10 +43,16 @@ function summary(category: ComponentCategory, specs: Specs) {
 export function generateComponentDescription(
   category: ComponentCategory,
   manufacturer: string,
-  model: string,
+  name: string,
   specs: Specs,
+  caseModel = "",
 ) {
-  const parts = [manufacturer.trim(), model.trim(), ...summary(category, specs)]
+  const cleanManufacturer = manufacturer.trim();
+  const cleanName = name.trim();
+  const identity = cleanName.toLocaleLowerCase("pt-BR").startsWith(cleanManufacturer.toLocaleLowerCase("pt-BR"))
+    ? cleanName
+    : [cleanManufacturer, cleanName].filter(Boolean).join(" ");
+  const parts = [identity, category === "CASE" ? caseModel.trim() : "", ...summary(category, specs)]
     .filter((part): part is string => Boolean(part?.trim()));
   const seen = new Set<string>();
   return parts.filter((part) => {
@@ -55,9 +61,4 @@ export function generateComponentDescription(
     seen.add(key);
     return true;
   }).join(" - ");
-}
-
-export function componentModelFallback(description: string, manufacturer: string) {
-  const prefix = `${manufacturer.trim()} - `;
-  return (description.startsWith(prefix) ? description.slice(prefix.length) : description).slice(0, 140);
 }

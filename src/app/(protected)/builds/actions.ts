@@ -111,8 +111,8 @@ export async function addBuildComponent(formData: FormData) {
 
   const [{ data: build }, { data: selected, error: selectedError }, { data: candidate }, { data: lot }] = await Promise.all([
     supabase.from("builds").select("id, status").eq("id", parsed.data.buildId).maybeSingle(),
-    supabase.from("build_components").select("component_id, lot_id, components(id, category, manufacturer, model, description, specs)").eq("build_id", parsed.data.buildId).eq("is_active", true),
-    supabase.from("components").select("id, category, manufacturer, model, description, specs").eq("id", componentId).maybeSingle(),
+    supabase.from("build_components").select("component_id, lot_id, components(id, category, manufacturer, name, model, description, specs)").eq("build_id", parsed.data.buildId).eq("is_active", true),
+    supabase.from("components").select("id, category, manufacturer, name, model, description, specs").eq("id", componentId).maybeSingle(),
     supabase.from("component_lots").select("id, component_id, available_quantity").eq("id", lotId).eq("component_id", componentId).maybeSingle(),
   ]);
 
@@ -125,6 +125,7 @@ export async function addBuildComponent(formData: FormData) {
       id: string;
       category: string;
       manufacturer: string;
+      name: string;
       model: string;
       description: string | null;
       specs: unknown;
@@ -135,6 +136,7 @@ export async function addBuildComponent(formData: FormData) {
       lotId: item.lot_id,
       category: componentCategorySchema.parse(part.category),
       manufacturer: part.manufacturer,
+      name: part.name,
       model: part.model,
       description: part.description,
       specs: asRecord(part.specs),
@@ -145,6 +147,7 @@ export async function addBuildComponent(formData: FormData) {
     lotId,
     category: componentCategorySchema.parse(candidate.category),
     manufacturer: candidate.manufacturer,
+    name: candidate.name,
     model: candidate.model,
     description: candidate.description,
     specs: asRecord(candidate.specs),
