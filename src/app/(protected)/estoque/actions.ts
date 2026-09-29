@@ -8,6 +8,7 @@ import { requireAdminProfile } from "@/lib/auth/profile";
 import { generateComponentDescription } from "@/lib/inventory/description";
 import {
   componentCategorySchema,
+  manufacturerChoices,
   parseComponentSpecs,
   parseSpecFormValue,
   specFields,
@@ -16,7 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const componentFieldsSchema = z.object({
   manufacturer: z.string().trim().min(1).max(100),
-  name: z.string().trim().min(1).max(140),
+  name: z.string().trim().max(140).optional(),
   caseModel: z.string().trim().max(140).optional(),
   lotCode: z.string().trim().max(80).optional(),
   quantity: z.preprocess((value) => value === null ? undefined : value, z.coerce.number().int().min(0).max(100000)),
@@ -37,6 +38,9 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
     notes: formData.get("notes") ?? "",
   });
   if (!category.success || !fields.success) return { error: "invalid-input" };
+  const categoryManufacturerChoices = manufacturerChoices[category.data];
+  if (categoryManufacturerChoices && !categoryManufacturerChoices.includes(fields.data.manufacturer)) return { error: "invalid-input" };
+  if ((category.data === "CPU" || category.data === "GPU") && !fields.data.name) return { error: "invalid-input" };
 
   const rawSpecs: Record<string, unknown> = {};
   for (const field of specFields[category.data]) {
@@ -48,17 +52,17 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
   const description = generateComponentDescription(
     category.data,
     fields.data.manufacturer,
-    fields.data.name,
+    fields.data.name ?? "",
     specs.data as Record<string, unknown>,
-    fields.data.caseModel ?? "",
   );
-  const model = category.data === "CASE" ? fields.data.caseModel || fields.data.name : fields.data.name;
+  const storedName = fields.data.name || description || fields.data.manufacturer;
+  const model = category.data === "CASE" ? fields.data.caseModel || description || fields.data.manufacturer : storedName;
 
   const supabase = await createClient();
   const { data: componentId, error } = await supabase.rpc("admin_create_component", {
     p_category: category.data,
     p_manufacturer: fields.data.manufacturer,
-    p_name: fields.data.name,
+    p_name: storedName,
     p_model: model,
     p_description: description,
     p_specs: specs.data,

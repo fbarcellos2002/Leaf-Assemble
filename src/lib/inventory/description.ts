@@ -9,7 +9,7 @@ function text(specs: Specs, key: string) {
 
 function number(specs: Specs, key: string, unit: string) {
   const value = specs[key];
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? `${value} ${unit}` : undefined;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? `${value} ${unit}` : undefined;
 }
 
 function list(specs: Specs, key: string) {
@@ -22,21 +22,24 @@ function list(specs: Specs, key: string) {
 function summary(category: ComponentCategory, specs: Specs) {
   switch (category) {
     case "CPU":
-      return [number(specs, "cores", "núcleos"), number(specs, "threads", "threads"), text(specs, "socket")];
+      return [number(specs, "cores", "núcleos"), number(specs, "threads", "threads")];
     case "MOTHERBOARD":
-      return [text(specs, "memoryType"), text(specs, "socket"), text(specs, "chipset"), text(specs, "formFactor")];
+      return [text(specs, "socket")];
     case "RAM":
       return [number(specs, "capacityGb", "GB"), text(specs, "memoryType"), number(specs, "frequencyMhz", "MHz")];
     case "GPU":
-      return [number(specs, "vramGb", "GB VRAM"), text(specs, "interface")];
+      return [number(specs, "vramGb", "GB VRAM")];
     case "STORAGE":
-      return [text(specs, "type"), number(specs, "capacityGb", "GB"), text(specs, "interface"), text(specs, "formFactor")];
+      return [number(specs, "capacityGb", "GB"), text(specs, "interface")];
     case "PSU":
-      return [number(specs, "wattageW", "W"), text(specs, "efficiencyRating"), text(specs, "formFactor")];
+      return [number(specs, "wattageW", "W"), text(specs, "efficiencyRating")];
     case "CASE":
-      return [list(specs, "formFactorSupport"), number(specs, "gpuMaxLengthMm", "mm GPU")];
+      return [
+        list(specs, "formFactorSupport") ? `Placa-mãe ${list(specs, "formFactorSupport")}` : undefined,
+        list(specs, "psuFormFactors") ? `Fonte de alimentação ${list(specs, "psuFormFactors")}` : undefined,
+      ];
     case "CPU_COOLER":
-      return [list(specs, "supportedSockets"), number(specs, "tdpRatingW", "W"), text(specs, "formFactor")];
+      return [list(specs, "supportedSockets")];
   }
 }
 
@@ -45,14 +48,19 @@ export function generateComponentDescription(
   manufacturer: string,
   name: string,
   specs: Specs,
-  caseModel = "",
 ) {
   const cleanManufacturer = manufacturer.trim();
   const cleanName = name.trim();
+  if (category === "GPU") {
+    return [cleanName, ...summary(category, specs)].filter((part): part is string => Boolean(part?.trim())).join(" - ");
+  }
   const identity = cleanName.toLocaleLowerCase("pt-BR").startsWith(cleanManufacturer.toLocaleLowerCase("pt-BR"))
     ? cleanName
     : [cleanManufacturer, cleanName].filter(Boolean).join(" ");
-  const parts = [identity, category === "CASE" ? caseModel.trim() : "", ...summary(category, specs)]
+  const parts = [
+    category === "CPU" ? identity : cleanManufacturer,
+    ...summary(category, specs),
+  ]
     .filter((part): part is string => Boolean(part?.trim()));
   const seen = new Set<string>();
   return parts.filter((part) => {

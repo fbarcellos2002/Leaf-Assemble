@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import { requireActiveProfile } from "@/lib/auth/profile";
+import { componentCategorySchema, specFields } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
 import { receiveStock, removeStock } from "../actions";
@@ -21,64 +22,6 @@ const categoryLabels: Record<string, string> = {
   PSU: "Fonte de alimentação",
   CASE: "Gabinete",
   CPU_COOLER: "Cooler do processador",
-};
-
-const specLabels: Record<string, string> = {
-  socket: "Socket",
-  microarchitecture: "Microarquitetura",
-  cores: "Núcleos",
-  threads: "Threads",
-  baseClockMhz: "Clock base (MHz)",
-  boostClockMhz: "Clock boost (MHz)",
-  tdpW: "TDP (W)",
-  integratedGraphics: "Gráficos integrados",
-  integratedGraphicsModel: "Modelo dos gráficos integrados",
-  memoryTypes: "Tipos de memória",
-  maxMemoryFrequencyMhz: "Frequência máxima de memória (MHz)",
-  maxMemoryCapacityGb: "Memória máxima suportada (GB)",
-  memoryChannels: "Canais de memória",
-  cacheL2Mb: "Cache L2 (MB)",
-  cacheL3Mb: "Cache L3 (MB)",
-  pcieVersion: "Versão PCI Express",
-  pcieLanes: "Pistas PCIe",
-  instructionSets: "Conjuntos de instruções",
-  virtualization: "Tecnologias de virtualização",
-  chipset: "Chipset",
-  formFactor: "Formato",
-  memoryType: "Tipo de memória",
-  memorySlots: "Slots de memória",
-  maxMemoryGb: "Memória máxima (GB)",
-  supportedMemoryFrequenciesMhz: "Frequências suportadas (MHz)",
-  eccSupport: "Suporte ECC",
-  storageInterfaces: "Interfaces de armazenamento",
-  pcieSlots: "Slots PCIe",
-  capacityGb: "Capacidade (GB)",
-  frequencyMhz: "Frequência (MHz)",
-  casLatency: "Latência CAS",
-  voltage: "Tensão (V)",
-  moduleCount: "Módulos por kit",
-  ecc: "ECC",
-  registered: "Registered",
-  vramGb: "VRAM (GB)",
-  interface: "Interface",
-  lengthMm: "Comprimento (mm)",
-  powerConnectors: "Conectores de energia",
-  recommendedPsuW: "Fonte recomendada (W)",
-  type: "Tipo",
-  readSpeedMbS: "Leitura (MB/s)",
-  writeSpeedMbS: "Gravação (MB/s)",
-  wattageW: "Potência (W)",
-  efficiencyRating: "Certificação",
-  connectors: "Conectores",
-  formFactorSupport: "Formatos de placa-mãe",
-  gpuMaxLengthMm: "Comprimento máximo da GPU (mm)",
-  cpuCoolerMaxHeightMm: "Altura máxima do cooler (mm)",
-  psuFormFactors: "Formatos de fonte",
-  driveBays25: "Baias de 2,5\"",
-  driveBays35: "Baias de 3,5\"",
-  supportedSockets: "Sockets compatíveis",
-  heightMm: "Altura (mm)",
-  tdpRatingW: "TDP suportado (W)",
 };
 
 function formatSpec(value: unknown) {
@@ -108,7 +51,10 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
   const specs = component.specs && typeof component.specs === "object" && !Array.isArray(component.specs)
     ? component.specs as Record<string, unknown>
     : {};
-  const visibleSpecs = Object.entries(specs).filter(([key]) => key !== "generation");
+  const category = componentCategorySchema.parse(component.category);
+  const activeFields = specFields[category];
+  const activeSpecKeys = new Set(activeFields.map((field) => field.key));
+  const visibleSpecs = Object.entries(specs).filter(([key]) => activeSpecKeys.has(key));
   return (
     <div>
       <Link href="/estoque" className="text-sm font-medium text-[#4b7b3b] hover:underline">← Voltar ao estoque</Link>
@@ -141,10 +87,10 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
       <section className="mt-7 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-semibold text-[#153b2a]">Especificações</h2>
         {visibleSpecs.length ? (
-          <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+          <dl className="mt-5 grid grid-cols-1 gap-y-4">
             {visibleSpecs.map(([key, value]) => (
               <div key={key} className="border-b border-[#edf1ea] pb-3">
-                <dt className="text-xs font-semibold tracking-wide text-[#718276] uppercase">{specLabels[key] ?? key}</dt>
+                <dt className="text-xs font-semibold tracking-wide text-[#718276] uppercase">{activeFields.find((field) => field.key === key)?.label ?? key}{activeFields.find((field) => field.key === key)?.unit ? ` (${activeFields.find((field) => field.key === key)?.unit})` : ""}</dt>
                 <dd className="mt-1 text-sm font-medium text-[#294333]">{formatSpec(value)}</dd>
               </div>
             ))}
@@ -179,7 +125,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
                       <form action={removeStock} className="flex items-center gap-2">
                         <input type="hidden" name="componentId" value={component.id} />
                         <input type="hidden" name="lotId" value={lot.id} />
-                        <input className="h-9 w-20 rounded-lg border border-[#d9e2d8] px-2 text-sm" type="number" name="quantity" min="1" max={lot.available_quantity} required aria-label={`Quantidade a remover de ${lot.lot_code || "lote sem identificação"}`} />
+                        <input className="h-9 w-20 rounded-lg border border-[#d9e2d8] px-2 text-sm" type="number" name="quantity" min="1" max={lot.available_quantity} required onWheel={(event) => event.currentTarget.blur()} aria-label={`Quantidade a remover de ${lot.lot_code || "lote sem identificação"}`} />
                         <button className="h-9 rounded-lg border border-[#d9d0cc] px-3 text-sm font-semibold text-[#8d493f] hover:bg-[#fff5f3]" type="submit">Remover</button>
                       </form>
                     ) : <span className="text-xs text-[#89958d]">—</span>}
@@ -191,12 +137,12 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
         ) : <p className="mt-4 text-sm text-[#718276]">Nenhum lote registrado.</p>}
 
         {profile.role === "ADMIN" ? (
-          <form action={receiveStock} className="mt-7 grid gap-3 border-t border-[#e7ede4] pt-6 sm:grid-cols-2 lg:grid-cols-4">
+          <form action={receiveStock} className="mt-7 grid grid-cols-1 gap-3 border-t border-[#e7ede4] pt-6">
             <input type="hidden" name="componentId" value={component.id} />
-            <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Quantidade recebida<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="quantity" type="number" min="1" max="100000" required /></label>
+            <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Quantidade recebida<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="quantity" type="number" min="1" max="100000" required onWheel={(event) => event.currentTarget.blur()} /></label>
             <input className="peer size-4 self-end accent-[#315b3c]" id="receive-stock-details" type="checkbox" />
             <label className="self-end pb-2 text-sm font-medium text-[#294333]" htmlFor="receive-stock-details">Informar lote ou observações</label>
-            <div className="col-span-full hidden grid-cols-1 gap-3 peer-checked:grid">
+            <div className="hidden grid-cols-1 gap-3 peer-checked:grid">
               <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Código do lote (opcional)<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="lotCode" maxLength={80} /></label>
               <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Observações (opcional)<input className="h-11 w-full rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="notes" maxLength={500} /></label>
             </div>

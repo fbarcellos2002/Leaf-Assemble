@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   componentCategories,
   type ComponentCategory,
+  manufacturerChoices,
   specChoices,
   specFields,
 } from "@/lib/inventory/specs";
@@ -52,82 +53,17 @@ export function ComponentForm({ action }: Props) {
     else if (field.type === "number-list") previewSpecs[field.key] = value.split(",").map(Number).filter(Number.isFinite);
     else previewSpecs[field.key] = value;
   }
-  const generatedDescription = generateComponentDescription(category, manufacturer, name, previewSpecs, caseModel);
+  const generatedDescription = generateComponentDescription(category, manufacturer, name, previewSpecs);
 
   function renderSpecField(field: (typeof specFields)[ComponentCategory][number]) {
     const value = specValues[field.key] ?? "";
     const options = specChoices[category]?.[field.key];
-
-    if (options && (field.type === "text" || field.type === "number")) {
-      const selectedValue = value && !options.includes(value) ? "__other__" : value;
-      const isCustom = selectedValue === "__other__";
-      return (
-        <>
-          <select
-            className="h-12 rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal"
-            aria-label={field.label}
-            value={selectedValue}
-            onChange={(event) => updateSpecValue(field.key, event.target.value === "__other__" ? (options.includes(value) ? "__other__" : value || "__other__") : event.target.value)}
-          >
-            <option value="">Selecione uma opção</option>
-            {options.map((option) => <option key={option} value={option}>{option}{field.type === "number" ? ` ${field.unit ?? ""}` : ""}</option>)}
-            <option value="__other__">Outro valor…</option>
-          </select>
-          <input type="hidden" name={`spec_${field.key}`} value={value === "__other__" ? "" : value} />
-          {isCustom ? (
-            <input
-              className="h-11 rounded-xl border border-[#d9e2d8] px-3 font-normal"
-              type={field.type === "number" ? "number" : "text"}
-              aria-label={`${field.label}, outro valor`}
-              inputMode={field.type === "number" ? "decimal" : "text"}
-              placeholder="Digite outro valor"
-              value={value === "__other__" ? "" : value}
-              onChange={(event) => updateSpecValue(field.key, event.target.value)}
-            />
-          ) : null}
-        </>
-      );
-    }
-
-    if (options && (field.type === "text-list" || field.type === "number-list")) {
-      const values = value.split(",").map((item) => item.trim()).filter(Boolean);
-      const selected = options.filter((option) => values.includes(option));
-      const custom = values.filter((item) => !options.includes(item));
-      return (
-        <>
-          <input type="hidden" name={`spec_${field.key}`} value={[...selected, ...custom].join(", ")} />
-          <div role="group" aria-label={field.label} className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl border border-[#d9e2d8] p-3 sm:grid-cols-3">
-            {options.map((option) => (
-              <label key={option} className="flex min-w-0 items-center gap-2 text-sm font-normal text-[#44594b]">
-                <input
-                  type="checkbox"
-                  className="size-4 shrink-0 accent-[#315b3c]"
-                  checked={selected.includes(option)}
-                  onChange={(event) => {
-                    const nextSelected = event.target.checked ? [...selected, option] : selected.filter((item) => item !== option);
-                    updateSpecValue(field.key, [...nextSelected, ...custom].join(", "));
-                  }}
-                />
-                <span>{option}{field.type === "number-list" ? ` ${field.unit ?? ""}` : ""}</span>
-              </label>
-            ))}
-          </div>
-          <input
-            className="h-10 rounded-lg border border-[#d9e2d8] px-3 text-sm font-normal"
-            aria-label={`${field.label}, outras opções`}
-            type="text"
-            inputMode={field.type === "number-list" ? "decimal" : "text"}
-            placeholder={field.type === "number-list" ? "Outras frequências, separadas por vírgula" : "Outras opções, separadas por vírgula"}
-            value={custom.join(", ")}
-            onChange={(event) => updateSpecValue(field.key, [...selected, event.target.value].filter(Boolean).join(", "))}
-          />
-        </>
-      );
-    }
-
+    const placeholder = category === "CPU" && field.key === "socket"
+      ? manufacturer === "Intel" ? "Ex.: LGA 1155" : manufacturer === "AMD" ? "Ex.: AM4" : field.hint
+      : field.hint;
     if (field.type === "boolean") {
       return (
-        <select className="h-12 rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal" name={`spec_${field.key}`} aria-label={field.label} value={value} onChange={(event) => updateSpecValue(field.key, event.target.value)}>
+        <select className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal" name={`spec_${field.key}`} aria-label={field.label} value={value} onChange={(event) => updateSpecValue(field.key, event.target.value)}>
           <option value="">Não informado</option>
           <option value="true">Sim</option>
           <option value="false">Não</option>
@@ -135,17 +71,26 @@ export function ComponentForm({ action }: Props) {
       );
     }
 
+    const listField = field.type === "text-list" || field.type === "number-list";
+    const datalistId = `options-${category}-${field.key}`;
     return (
-      <input
-        className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal"
-        name={`spec_${field.key}`}
-        aria-label={field.label}
-        type={field.type === "number" ? "number" : "text"}
-        inputMode={field.type === "number" || field.type === "number-list" ? "decimal" : "text"}
-        placeholder={field.hint}
-        value={value}
-        onChange={(event) => updateSpecValue(field.key, event.target.value)}
-      />
+      <>
+        <input
+          className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal"
+          name={`spec_${field.key}`}
+          aria-label={field.label}
+          type={field.type === "number" ? "number" : "text"}
+          min={field.type === "number" ? "0" : undefined}
+          step={field.type === "number" ? "any" : undefined}
+          inputMode={field.type === "number" || field.type === "number-list" ? "decimal" : "text"}
+          list={options?.length ? datalistId : undefined}
+          placeholder={placeholder ?? (listField ? "Separe os valores por vírgula" : undefined)}
+          value={value}
+          onWheel={field.type === "number" ? (event) => event.currentTarget.blur() : undefined}
+          onChange={(event) => updateSpecValue(field.key, event.target.value)}
+        />
+        {options?.length ? <datalist id={datalistId}>{options.map((option) => <option key={option} value={option} />)}</datalist> : null}
+      </>
     );
   }
 
@@ -162,7 +107,7 @@ export function ComponentForm({ action }: Props) {
       ) : null}
       <section>
         <h2 className="text-lg font-semibold text-[#153b2a]">Identificação</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-4">
           <label className="grid gap-2 text-sm font-medium text-[#294333]">
             Categoria
             <select
@@ -171,6 +116,7 @@ export function ComponentForm({ action }: Props) {
               onChange={(event) => {
                 setCategory(event.target.value as ComponentCategory);
                 setSpecValues({});
+                setManufacturer("");
               }}
               value={category}
             >
@@ -179,11 +125,16 @@ export function ComponentForm({ action }: Props) {
               ))}
             </select>
           </label>
-          <div className="grid gap-2 text-sm font-medium text-[#294333]">
-            <label htmlFor="component-manufacturer">Fabricante</label>
-            <input
+          <label className="grid gap-2 text-sm font-medium text-[#294333]">
+            Fabricante
+            {manufacturerChoices[category] ? (
+              <select className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal" name="manufacturer" required value={manufacturer} onChange={(event) => setManufacturer(event.target.value)}>
+                <option value="">Selecione o fabricante</option>
+                {manufacturerChoices[category]?.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            ) : <input
               id="component-manufacturer"
-              className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal"
+              className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal"
               name="manufacturer"
               required
               maxLength={100}
@@ -191,17 +142,17 @@ export function ComponentForm({ action }: Props) {
               placeholder="Fabricante"
               value={manufacturer}
               onChange={(event) => setManufacturer(event.target.value)}
-            />
-          </div>
-          <label className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
-            Nome da peça <span className="text-xs font-normal text-[#718276]">Obrigatório; informe a identificação comercial, como Core i5-2500.</span>
+            />}
+          </label>
+          {category === "CPU" || category === "GPU" ? <label className="grid gap-2 text-sm font-medium text-[#294333]">
+            Nome da peça <span className="text-xs font-normal text-[#718276]">Obrigatório; informe a identificação comercial.</span>
             <input
-              className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal"
+              className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal"
               name="name"
               required
               maxLength={140}
               autoComplete="off"
-              placeholder={category === "CPU" ? "Ex.: Core i5-2500" : "Ex.: código ou identificação da peça"}
+              placeholder={category === "CPU" ? "Ex.: Core i5-2500" : "Ex.: GeForce RTX 4060"}
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
@@ -212,11 +163,11 @@ export function ComponentForm({ action }: Props) {
                 <a href="https://www.amd.com/en/products/specifications/processors.html" target="_blank" rel="noreferrer">Pesquisar no catálogo AMD ↗</a>
               </div>
             ) : null}
-          </label>
+          </label> : null}
           {category === "CASE" ? (
-            <label className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
+            <label className="grid gap-2 text-sm font-medium text-[#294333]">
               Modelo do gabinete (opcional)
-              <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="caseModel" maxLength={140} autoComplete="off" placeholder="Modelo do gabinete, se conhecido" value={caseModel} onChange={(event) => setCaseModel(event.target.value)} />
+              <input className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal" name="caseModel" maxLength={140} autoComplete="off" placeholder="Modelo do gabinete, se conhecido" value={caseModel} onChange={(event) => setCaseModel(event.target.value)} />
             </label>
           ) : null}
         </div>
@@ -229,7 +180,7 @@ export function ComponentForm({ action }: Props) {
             Preencha manualmente o que souber. Use as opções padronizadas ou informe um valor personalizado quando necessário.
           </p>
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-4">
           {specFields[category].map((field) => (
             <div key={field.key} className="grid gap-2 text-sm font-medium text-[#294333]">
               <p>{field.label}{field.unit ? ` (${field.unit})` : ""}</p>
@@ -243,8 +194,8 @@ export function ComponentForm({ action }: Props) {
       <section>
         <h2 className="text-lg font-semibold text-[#153b2a]">Descrição automática</h2>
         <p className="mt-1 text-sm leading-6 text-[#718276]">A descrição combina o nome da peça com fabricante e especificações técnicas importantes para a montagem.</p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2 rounded-xl border border-[#dce6d8] bg-[#f7f9f5] p-4">
+        <div className="mt-4 grid grid-cols-1 gap-4">
+          <div className="rounded-xl border border-[#dce6d8] bg-[#f7f9f5] p-4">
             <p className="text-xs font-semibold tracking-wide text-[#718276] uppercase">Descrição gerada</p>
             <p className="mt-2 font-medium text-[#294333]">{generatedDescription === manufacturer.trim() ? "Preencha as especificações principais para montar a descrição." : generatedDescription}</p>
           </div>
@@ -254,10 +205,10 @@ export function ComponentForm({ action }: Props) {
       <section>
         <h2 className="text-lg font-semibold text-[#153b2a]">Quantidade inicial</h2>
         <p className="mt-1 text-sm leading-6 text-[#718276]">Informe quantas unidades existem. O código de lote é opcional.</p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-4">
           <label className="grid gap-2 text-sm font-medium text-[#294333]">
             Quantidade
-            <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="quantity" type="number" min="0" max="100000" value={quantity} onChange={(event) => setQuantity(event.target.value)} required />
+            <input className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal" name="quantity" type="number" min="0" max="100000" step="1" value={quantity} onWheel={(event) => event.currentTarget.blur()} onChange={(event) => setQuantity(event.target.value)} required />
           </label>
           <div className="sm:col-span-2">
             <label className="flex items-center gap-2 text-sm font-medium text-[#294333]">
@@ -268,11 +219,11 @@ export function ComponentForm({ action }: Props) {
               <div className="mt-3 grid grid-cols-1 gap-4">
                 <label className="grid gap-2 text-sm font-medium text-[#294333]">
                   Código do lote (opcional)
-                  <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="lotCode" maxLength={80} value={lotCode} onChange={(event) => setLotCode(event.target.value)} />
+                  <input className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal" name="lotCode" maxLength={80} value={lotCode} onChange={(event) => setLotCode(event.target.value)} />
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-[#294333]">
                   Observações do lote (opcional)
-                  <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="notes" maxLength={500} value={lotNotes} onChange={(event) => setLotNotes(event.target.value)} />
+                  <input className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal" name="notes" maxLength={500} value={lotNotes} onChange={(event) => setLotNotes(event.target.value)} />
                 </label>
               </div>
             ) : null}

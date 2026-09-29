@@ -11,95 +11,77 @@ export const componentCategories = [
   "CPU_COOLER",
 ] as const;
 
+export const manufacturerChoices: Partial<Record<ComponentCategory, readonly string[]>> = {
+  CPU: ["Intel", "AMD"],
+  MOTHERBOARD: ["ASUS", "ASRock", "Biostar", "Colorful", "EVGA", "Gigabyte", "Intel", "MSI"],
+};
+
 export const componentCategorySchema = z.enum(componentCategories);
 export type ComponentCategory = z.infer<typeof componentCategorySchema>;
 
 const optionalText = z.string().trim().min(1).optional();
-const optionalPositiveNumber = z.number().positive().optional();
-const optionalPositiveInteger = z.number().int().positive().optional();
+const optionalNonnegativeNumber = z.number().nonnegative().optional();
+const optionalNonnegativeInteger = z.number().int().nonnegative().optional();
 const optionalTextList = z.array(z.string().trim().min(1)).optional();
-const optionalNumberList = z.array(z.number().positive()).optional();
+const optionalNumberList = z.array(z.number().nonnegative()).optional();
 const optionalBoolean = z.boolean().optional();
 
 const specSchemas = {
   CPU: z.object({
     socket: optionalText,
-    microarchitecture: optionalText,
-    cores: optionalPositiveInteger,
-    threads: optionalPositiveInteger,
-    baseClockMhz: optionalPositiveNumber,
-    boostClockMhz: optionalPositiveNumber,
-    tdpW: optionalPositiveNumber,
+    cores: optionalNonnegativeInteger,
+    threads: optionalNonnegativeInteger,
+    baseClockMhz: optionalNonnegativeNumber,
+    boostClockMhz: optionalNonnegativeNumber,
+    tdpW: optionalNonnegativeNumber,
     integratedGraphics: optionalBoolean,
-    integratedGraphicsModel: optionalText,
     memoryTypes: optionalTextList,
-    maxMemoryFrequencyMhz: optionalPositiveNumber,
-    maxMemoryCapacityGb: optionalPositiveNumber,
-    memoryChannels: optionalPositiveInteger,
-    cacheL2Mb: optionalPositiveNumber,
-    cacheL3Mb: optionalPositiveNumber,
-    pcieVersion: optionalText,
-    pcieLanes: optionalPositiveInteger,
-    instructionSets: optionalTextList,
-    virtualization: optionalTextList,
+    maxMemoryFrequencyMhz: optionalNonnegativeNumber,
+    maxMemoryCapacityGb: optionalNonnegativeNumber,
   }),
   MOTHERBOARD: z.object({
     socket: optionalText,
+    pcieVersion: optionalText,
     chipset: optionalText,
     formFactor: optionalText,
     memoryType: optionalText,
-    memorySlots: optionalPositiveInteger,
-    maxMemoryGb: optionalPositiveNumber,
+    memorySlots: optionalNonnegativeInteger,
+    maxMemoryGb: optionalNonnegativeNumber,
     supportedMemoryFrequenciesMhz: optionalNumberList,
-    eccSupport: optionalBoolean,
     storageInterfaces: optionalTextList,
-    pcieSlots: optionalPositiveInteger,
+    pcieSlots: optionalNonnegativeInteger,
   }),
   RAM: z.object({
     memoryType: optionalText,
-    capacityGb: optionalPositiveNumber,
-    frequencyMhz: optionalPositiveNumber,
-    casLatency: optionalPositiveInteger,
-    voltage: optionalPositiveNumber,
-    moduleCount: optionalPositiveInteger,
+    capacityGb: optionalNonnegativeNumber,
+    frequencyMhz: optionalNonnegativeNumber,
     formFactor: optionalText,
     ecc: optionalBoolean,
-    registered: optionalBoolean,
   }),
   GPU: z.object({
-    vramGb: optionalPositiveNumber,
-    interface: optionalText,
-    lengthMm: optionalPositiveNumber,
-    powerConnectors: optionalTextList,
-    recommendedPsuW: optionalPositiveNumber,
-    tdpW: optionalPositiveNumber,
+    vramGb: optionalNonnegativeNumber,
+    recommendedPsuW: optionalNonnegativeNumber,
   }),
   STORAGE: z.object({
     type: optionalText,
-    capacityGb: optionalPositiveNumber,
+    capacityGb: optionalNonnegativeNumber,
     interface: optionalText,
-    formFactor: optionalText,
-    readSpeedMbS: optionalPositiveNumber,
-    writeSpeedMbS: optionalPositiveNumber,
+    readSpeedMbS: optionalNonnegativeNumber,
+    writeSpeedMbS: optionalNonnegativeNumber,
   }),
   PSU: z.object({
-    wattageW: optionalPositiveNumber,
+    wattageW: optionalNonnegativeNumber,
     efficiencyRating: optionalText,
     formFactor: optionalText,
-    connectors: optionalTextList,
   }),
   CASE: z.object({
     formFactorSupport: optionalTextList,
-    gpuMaxLengthMm: optionalPositiveNumber,
-    cpuCoolerMaxHeightMm: optionalPositiveNumber,
+    gpuMaxLengthMm: optionalNonnegativeNumber,
+    cpuCoolerMaxHeightMm: optionalNonnegativeNumber,
     psuFormFactors: optionalTextList,
-    driveBays25: z.number().int().nonnegative().optional(),
-    driveBays35: z.number().int().nonnegative().optional(),
   }),
   CPU_COOLER: z.object({
     supportedSockets: optionalTextList,
-    heightMm: optionalPositiveNumber,
-    tdpRatingW: optionalPositiveNumber,
     formFactor: optionalText,
   }),
 } satisfies Record<ComponentCategory, z.ZodType>;
@@ -124,62 +106,44 @@ export type SpecField = {
 
 export const specFields: Record<ComponentCategory, SpecField[]> = {
   CPU: [
-    { key: "socket", label: "Socket", type: "text", hint: "Ex.: AM5, LGA1700" },
-    { key: "microarchitecture", label: "Microarquitetura", type: "text", hint: "Ex.: Zen 3, Raptor Lake" },
+    { key: "socket", label: "Socket", type: "text", hint: "Ex.: LGA 1155, AM4" },
     { key: "cores", label: "Núcleos", type: "number" },
     { key: "threads", label: "Threads", type: "number" },
     { key: "baseClockMhz", label: "Clock base", type: "number", unit: "MHz" },
     { key: "boostClockMhz", label: "Clock boost", type: "number", unit: "MHz" },
     { key: "tdpW", label: "TDP", type: "number", unit: "W" },
     { key: "integratedGraphics", label: "Gráficos integrados", type: "boolean" },
-    { key: "integratedGraphicsModel", label: "Modelo dos gráficos integrados", type: "text" },
     { key: "memoryTypes", label: "Tipos de memória", type: "text-list", hint: "Separe por vírgula: DDR4, DDR5" },
     { key: "maxMemoryFrequencyMhz", label: "Frequência máxima de memória", type: "number", unit: "MHz" },
     { key: "maxMemoryCapacityGb", label: "Memória máxima", type: "number", unit: "GB" },
-    { key: "memoryChannels", label: "Canais de memória", type: "number" },
-    { key: "cacheL2Mb", label: "Cache L2", type: "number", unit: "MB" },
-    { key: "cacheL3Mb", label: "Cache L3", type: "number", unit: "MB" },
-    { key: "pcieVersion", label: "Versão PCI Express", type: "text", hint: "Ex.: PCIe 4.0" },
-    { key: "pcieLanes", label: "Pistas PCIe", type: "number" },
-    { key: "instructionSets", label: "Conjuntos de instruções", type: "text-list", hint: "Separe por vírgula: SSE4.2, AVX2" },
-    { key: "virtualization", label: "Tecnologias de virtualização", type: "text-list", hint: "Separe por vírgula: Intel VT-x, AMD-V" },
   ],
   MOTHERBOARD: [
-    { key: "socket", label: "Socket", type: "text" },
+    { key: "socket", label: "Socket", type: "text", hint: "Ex.: LGA 1155, AM4" },
+    { key: "pcieVersion", label: "Versão PCI Express", type: "text", hint: "Ex.: PCIe 4.0" },
     { key: "chipset", label: "Chipset", type: "text" },
     { key: "formFactor", label: "Formato", type: "text", hint: "Ex.: ATX, Micro-ATX" },
     { key: "memoryType", label: "Tipo de memória", type: "text" },
     { key: "memorySlots", label: "Slots de memória", type: "number" },
     { key: "maxMemoryGb", label: "Memória máxima", type: "number", unit: "GB" },
     { key: "supportedMemoryFrequenciesMhz", label: "Frequências suportadas", type: "number-list", unit: "MHz", hint: "Separe por vírgula" },
-    { key: "eccSupport", label: "Suporte ECC", type: "boolean" },
     { key: "storageInterfaces", label: "Interfaces de armazenamento", type: "text-list", hint: "Ex.: NVMe, SATA" },
     { key: "pcieSlots", label: "Slots PCIe", type: "number" },
   ],
   RAM: [
     { key: "memoryType", label: "Tipo", type: "text", hint: "Ex.: DDR4, DDR5" },
-    { key: "capacityGb", label: "Capacidade do kit", type: "number", unit: "GB" },
+    { key: "capacityGb", label: "Capacidade por módulo", type: "number", unit: "GB" },
     { key: "frequencyMhz", label: "Frequência", type: "number", unit: "MHz" },
-    { key: "casLatency", label: "Latência CAS", type: "number" },
-    { key: "voltage", label: "Tensão", type: "number", unit: "V" },
-    { key: "moduleCount", label: "Módulos por kit", type: "number" },
     { key: "formFactor", label: "Formato", type: "text", hint: "Ex.: DIMM, SO-DIMM" },
     { key: "ecc", label: "ECC", type: "boolean" },
-    { key: "registered", label: "Registered", type: "boolean" },
   ],
   GPU: [
     { key: "vramGb", label: "VRAM", type: "number", unit: "GB" },
-    { key: "interface", label: "Interface", type: "text", hint: "Ex.: PCIe 4.0 x16" },
-    { key: "lengthMm", label: "Comprimento", type: "number", unit: "mm" },
-    { key: "powerConnectors", label: "Conectores de energia", type: "text-list", hint: "Ex.: 2x 8-pin" },
     { key: "recommendedPsuW", label: "Fonte recomendada", type: "number", unit: "W" },
-    { key: "tdpW", label: "TDP", type: "number", unit: "W" },
   ],
   STORAGE: [
     { key: "type", label: "Tipo", type: "text", hint: "Ex.: SSD, HDD" },
     { key: "capacityGb", label: "Capacidade", type: "number", unit: "GB" },
     { key: "interface", label: "Interface", type: "text", hint: "Ex.: NVMe, SATA" },
-    { key: "formFactor", label: "Formato", type: "text", hint: "Ex.: M.2 2280, 2.5\"" },
     { key: "readSpeedMbS", label: "Leitura", type: "number", unit: "MB/s" },
     { key: "writeSpeedMbS", label: "Gravação", type: "number", unit: "MB/s" },
   ],
@@ -187,20 +151,15 @@ export const specFields: Record<ComponentCategory, SpecField[]> = {
     { key: "wattageW", label: "Potência", type: "number", unit: "W" },
     { key: "efficiencyRating", label: "Certificação", type: "text", hint: "Ex.: 80 Plus Gold" },
     { key: "formFactor", label: "Formato", type: "text", hint: "Ex.: ATX, SFX" },
-    { key: "connectors", label: "Conectores", type: "text-list", hint: "Separe por vírgula" },
   ],
   CASE: [
     { key: "formFactorSupport", label: "Placas-mãe compatíveis", type: "text-list", hint: "Ex.: ATX, Micro-ATX" },
     { key: "gpuMaxLengthMm", label: "Comprimento máximo da GPU", type: "number", unit: "mm" },
     { key: "cpuCoolerMaxHeightMm", label: "Altura máxima do cooler", type: "number", unit: "mm" },
     { key: "psuFormFactors", label: "Formatos de fonte", type: "text-list", hint: "Ex.: ATX, SFX" },
-    { key: "driveBays25", label: "Baias de 2,5\"", type: "number" },
-    { key: "driveBays35", label: "Baias de 3,5\"", type: "number" },
   ],
   CPU_COOLER: [
     { key: "supportedSockets", label: "Sockets compatíveis", type: "text-list", hint: "Separe por vírgula" },
-    { key: "heightMm", label: "Altura", type: "number", unit: "mm" },
-    { key: "tdpRatingW", label: "TDP suportado", type: "number", unit: "W" },
     { key: "formFactor", label: "Formato", type: "text" },
   ],
 };
@@ -222,13 +181,10 @@ export const specChoices: Partial<Record<ComponentCategory, Record<string, reado
     formFactor: ["DIMM", "SO-DIMM", "CAMM2"],
   },
   GPU: {
-    interface: ["PCI Express 3.0 x16", "PCI Express 4.0 x16", "PCI Express 5.0 x16", "PCI Express 4.0 x8"],
-    powerConnectors: ["6-pin", "8-pin", "2 x 8-pin", "3 x 8-pin", "12VHPWR", "12V-2x6"],
   },
   STORAGE: {
     type: ["SSD", "HDD", "SSHD", "NVMe SSD", "SATA SSD"],
     interface: ["SATA", "SATA II", "SATA III", "M.2 SATA", "NVMe", "M.2 NVMe", "PCIe 3.0 x4", "PCIe 4.0 x4", "PCIe 5.0 x4", "USB"],
-    formFactor: ["M.2 2230", "M.2 2242", "M.2 2260", "M.2 2280", "M.2 22110", "2,5\"", "3,5\""],
   },
   PSU: {
     efficiencyRating: ["80 Plus", "80 Plus White", "80 Plus Bronze", "80 Plus Silver", "80 Plus Gold", "80 Plus Platinum", "80 Plus Titanium"],
