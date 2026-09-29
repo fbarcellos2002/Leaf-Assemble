@@ -25,13 +25,25 @@ const categoryLabels: Record<string, string> = {
 
 const specLabels: Record<string, string> = {
   socket: "Socket",
+  microarchitecture: "Microarquitetura",
+  generation: "Geração",
   cores: "Núcleos",
   threads: "Threads",
   baseClockMhz: "Clock base (MHz)",
   boostClockMhz: "Clock boost (MHz)",
   tdpW: "TDP (W)",
   integratedGraphics: "Gráficos integrados",
+  integratedGraphicsModel: "Modelo dos gráficos integrados",
   memoryTypes: "Tipos de memória",
+  maxMemoryFrequencyMhz: "Frequência máxima de memória (MHz)",
+  maxMemoryCapacityGb: "Memória máxima suportada (GB)",
+  memoryChannels: "Canais de memória",
+  cacheL2Mb: "Cache L2 (MB)",
+  cacheL3Mb: "Cache L3 (MB)",
+  pcieVersion: "Versão PCI Express",
+  pcieLanes: "Pistas PCIe",
+  instructionSets: "Conjuntos de instruções",
+  virtualization: "Tecnologias de virtualização",
   chipset: "Chipset",
   formFactor: "Formato",
   memoryType: "Tipo de memória",
@@ -68,7 +80,6 @@ const specLabels: Record<string, string> = {
   supportedSockets: "Sockets compatíveis",
   heightMm: "Altura (mm)",
   tdpRatingW: "TDP suportado (W)",
-  maxMemoryFrequencyMhz: "Frequência máxima de memória (MHz)",
 };
 
 function formatSpec(value: unknown) {

@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
-type Props = { authUserId: string };
+type Props = { authUserId: string; compact?: boolean };
 type PingState =
   | { status: "checking" }
   | { status: "ok"; latencyMs: number }
   | { status: "error" };
 
-export function DatabaseLatency({ authUserId }: Props) {
+export function DatabaseLatency({ authUserId, compact = false }: Props) {
   const [ping, setPing] = useState<PingState>({ status: "checking" });
 
   const measureLatency = useCallback(async () => {
@@ -60,14 +60,14 @@ export function DatabaseLatency({ authUserId }: Props) {
   return (
     <button
       aria-label={`${label}. Clique para medir novamente.`}
-      className={`inline-flex h-9 items-center gap-2 rounded-lg border border-[#d9e2d8] bg-white px-2.5 text-xs font-medium transition hover:bg-[#f5f7f2] disabled:cursor-wait disabled:opacity-70 sm:px-3 ${color}`}
+      className={`inline-flex h-9 items-center gap-2 rounded-lg border border-[#d9e2d8] bg-white px-2.5 text-xs font-medium transition hover:bg-[#f5f7f2] disabled:cursor-wait disabled:opacity-70 sm:px-3 ${color} ${compact ? "lg:size-10 lg:justify-center lg:px-0" : ""}`}
       disabled={ping.status === "checking"}
       onClick={() => void measureLatency()}
       title="Tempo de ida e volta de uma consulta autenticada ao Supabase, medido no navegador. Atualiza a cada 30 segundos."
       type="button"
     >
-      <span aria-hidden="true" className="text-sm">↻</span>
-      <span aria-live="polite">{label}</span>
+      <span aria-hidden="true" className="text-sm">{ping.status === "ok" ? "●" : ping.status === "error" ? "!" : "↻"}</span>
+      <span className={compact ? "lg:hidden" : ""} aria-live="polite">{label}</span>
     </button>
   );
 }

@@ -193,6 +193,13 @@ export function ComponentForm({ action }: Props) {
               value={model}
               onChange={(event) => setModel(event.target.value)}
             />
+            {category === "CPU" ? (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-[#4b7b3b]">
+                <span className="w-full font-normal text-[#718276]">Consulte a ficha do modelo no fabricante para preencher as especificações.</span>
+                <a href={`https://www.intel.com/content/www/us/en/ark/search.html?q=${encodeURIComponent(model || "processor")}`} target="_blank" rel="noreferrer">Pesquisar no Intel ARK ↗</a>
+                <a href="https://www.amd.com/en/products/specifications/processors.html" target="_blank" rel="noreferrer">Pesquisar no catálogo AMD ↗</a>
+              </div>
+            ) : null}
           </div>
           <div className="sm:col-span-2">
             <label className="flex items-center gap-2 text-sm font-medium text-[#294333]">
