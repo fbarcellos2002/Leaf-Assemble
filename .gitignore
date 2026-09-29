@@ -40,3 +40,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Downloaded Icecat feeds (keep product catalog files out of Git)
+/catalogo.xml.gz
+/SuppliersList.xml.gz
+/SupplierList.xml.gz

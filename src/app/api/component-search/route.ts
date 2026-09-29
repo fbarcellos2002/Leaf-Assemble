@@ -78,6 +78,20 @@ export async function POST(request: NextRequest) {
       .sort((left, right) => rank(right) - rank(left) || left.model_name.localeCompare(right.model_name))
       .slice(0, 12);
 
+    if (results.length === 0) {
+      const { data: catalogSample, error: catalogProbeError } = await supabase
+        .from("icecat_catalog")
+        .select("icecat_id")
+        .limit(1);
+      if (catalogProbeError) {
+        console.error("Icecat catalog availability check failed", { code: catalogProbeError.code });
+        return NextResponse.json({ error: "catalog-unavailable" }, { status: 503 });
+      }
+      if (!catalogSample?.length) {
+        return NextResponse.json({ error: "catalog-empty" }, { status: 503 });
+      }
+    }
+
     if (results.length === 0 && looksLikeBrandSearch(term)) {
       const { data: matchingBrands, error: brandError } = await supabase
         .from("icecat_catalog")

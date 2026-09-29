@@ -33,6 +33,7 @@ const lookupErrors: Record<string, string> = {
   "not-found": "Nenhuma ficha técnica foi encontrada. Confira o fabricante e o código exato (MPN).",
   "provider-error": "O catálogo não respondeu agora. Tente novamente em instantes.",
   "catalog-unavailable": "Não foi possível acessar o catálogo Icecat no Supabase. Confira se a tabela icecat_catalog existe e se as credenciais estão corretas.",
+  "catalog-empty": "O catálogo Icecat no Supabase ainda está vazio. Importe o índice Open Icecat para ativar as sugestões.",
   "invalid-input": "Confira a categoria, o fabricante e o código/modelo da peça.",
   unauthorized: "Somente administradores podem consultar e importar fichas técnicas.",
 };
@@ -63,10 +64,7 @@ export function ComponentForm({ action }: Props) {
 
   useEffect(() => {
     const term = searchText.trim();
-    if (term.length < 2 || selectedSearchQuery === term) {
-      setIsSearching(false);
-      return;
-    }
+    if (term.length < 2 || selectedSearchQuery === term) return;
 
     const controller = new AbortController();
     const timeout = setTimeout(async () => {
