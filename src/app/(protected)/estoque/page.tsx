@@ -25,11 +25,11 @@ export default async function InventoryPage({ searchParams }: Props) {
   const supabase = await createClient();
   let componentQuery = supabase
     .from("components")
-    .select("id, category, manufacturer, model, component_lots(quantity_total, reserved_quantity, used_quantity)")
+    .select("id, category, manufacturer, model, description, component_lots(quantity_total, reserved_quantity, used_quantity)")
     .order("category")
     .order("manufacturer");
   if (category.success) componentQuery = componentQuery.eq("category", category.data);
-  if (query) componentQuery = componentQuery.or(`manufacturer.ilike.%${query}%,model.ilike.%${query}%`);
+  if (query) componentQuery = componentQuery.or(`manufacturer.ilike.%${query}%,model.ilike.%${query}%,description.ilike.%${query}%`);
   const { data: components, error } = await componentQuery;
 
   return (
@@ -67,7 +67,7 @@ export default async function InventoryPage({ searchParams }: Props) {
                 <span className="rounded-full bg-[#eaf1e4] px-3 py-1.5 text-xs font-semibold text-[#315b3c]">{labels[component.category] ?? component.category}</span>
                 <span className="text-sm font-semibold text-[#315b3c]">{total - reserved - used} disponíveis</span>
               </div>
-              <h2 className="mt-4 text-lg font-semibold text-[#153b2a] group-hover:text-[#4b8a2a]">{component.manufacturer} {component.model}</h2>
+              <h2 className="mt-4 text-lg font-semibold text-[#153b2a] group-hover:text-[#4b8a2a]">{component.description || `${component.manufacturer} ${component.model}`}</h2>
               <div className="mt-4 flex gap-5 border-t border-[#edf1ea] pt-4 text-sm text-[#718276]">
                 <span>Total <strong className="ml-1 text-[#344b3a]">{total}</strong></span>
                 <span>Reservado <strong className="ml-1 text-[#344b3a]">{reserved}</strong></span>

@@ -115,8 +115,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
       <div className="mt-5 flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
           <span className="rounded-full bg-[#eaf1e4] px-3 py-1.5 text-xs font-semibold text-[#315b3c]">{categoryLabels[component.category] ?? component.category}</span>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#153b2a] sm:text-4xl">{component.manufacturer} {component.model}</h1>
-          {component.description ? <p className="mt-3 max-w-2xl leading-7 text-[#607266]">{component.description}</p> : null}
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#153b2a] sm:text-4xl">{component.description || `${component.manufacturer} ${component.model}`}</h1>
         </div>
       </div>
 

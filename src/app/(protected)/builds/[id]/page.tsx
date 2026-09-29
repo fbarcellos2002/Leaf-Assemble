@@ -56,8 +56,8 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
   const supabase = await createClient();
   const [{ data: build }, { data: buildItems, error: itemsError }, { data: inventory }] = await Promise.all([
     supabase.from("builds").select("id, name, status, notes, created_at, updated_at, removed_at").eq("id", id).maybeSingle(),
-    supabase.from("build_components").select("id, component_id, lot_id, slot_key, quantity, is_active, compatibility_status, compatibility_confirmed, created_at, components(id, category, manufacturer, model, specs)").eq("build_id", id).order("created_at", { ascending: false }),
-    supabase.from("components").select("id, category, manufacturer, model, specs, component_lots(id, lot_code, available_quantity)").order("manufacturer"),
+    supabase.from("build_components").select("id, component_id, lot_id, slot_key, quantity, is_active, compatibility_status, compatibility_confirmed, created_at, components(id, category, manufacturer, model, description, specs)").eq("build_id", id).order("created_at", { ascending: false }),
+    supabase.from("components").select("id, category, manufacturer, model, description, specs, component_lots(id, lot_code, available_quantity)").order("manufacturer"),
   ]);
   if (!build || build.removed_at) notFound();
 
@@ -79,6 +79,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
       category: string;
       manufacturer: string;
       model: string;
+      description: string | null;
       specs: unknown;
     } | null;
     if (!component || Array.isArray(component)) return [];
@@ -88,6 +89,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
       category: componentCategorySchema.parse(component.category),
       manufacturer: component.manufacturer,
       model: component.model,
+      description: component.description,
       specs: asRecord(component.specs),
     } satisfies CompatibilityPart];
   });
@@ -165,6 +167,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
               category: string;
               manufacturer: string;
               model: string;
+              description: string | null;
               specs: unknown;
             } | null | undefined;
             const previousComponent = releasedItem?.components as unknown as {
@@ -172,13 +175,14 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
               category: string;
               manufacturer: string;
               model: string;
+              description: string | null;
               specs: unknown;
             } | null | undefined;
             const options = (inventory ?? []).filter((part) => part.category === category).flatMap((part) => {
               const lots = Array.isArray(part.component_lots) ? part.component_lots : [];
               return lots.filter((lot) => lot.available_quantity > 0).map((lot) => ({
                 selection: `${part.id}~${lot.id}`,
-                label: `${part.manufacturer} ${part.model} · lote ${lot.lot_code || "sem identificação"} · ${lot.available_quantity} disponíveis`,
+                label: `${part.description || `${part.manufacturer} ${part.model}`} · lote ${lot.lot_code || "sem identificação"} · ${lot.available_quantity} disponíveis`,
               }));
             });
 
@@ -187,7 +191,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
                 <p className="text-xs font-semibold tracking-wide text-[#718276] uppercase">{label}</p>
                 {item && component && !Array.isArray(component) ? (
                   <div className="mt-3">
-                    <p className="font-semibold text-[#294333]">{component.manufacturer} {component.model}</p>
+                    <p className="font-semibold text-[#294333]">{component.description || `${component.manufacturer} ${component.model}`}</p>
                     <p className="mt-1 text-xs text-[#718276]">Lote {lotById.get(item.lot_id) || "Sem identificação"} · {item.quantity} unidade reservada</p>
                     {category === "CPU" && typeof asRecord(component.specs).integratedGraphics === "boolean" ? (
                       <p className="mt-1 text-xs text-[#718276]">Gráficos integrados: {asRecord(component.specs).integratedGraphics ? "Sim" : "Não"}</p>
@@ -199,7 +203,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
                   </div>
                 ) : canEdit ? (
                   <>
-                    {releasedItem && previousComponent && !Array.isArray(previousComponent) ? <p className="mt-2 text-xs text-[#89958d]">Reserva liberada anteriormente: {previousComponent.manufacturer} {previousComponent.model} · lote {lotById.get(releasedItem.lot_id) ?? "—"}</p> : null}
+                    {releasedItem && previousComponent && !Array.isArray(previousComponent) ? <p className="mt-2 text-xs text-[#89958d]">Reserva liberada anteriormente: {previousComponent.description || `${previousComponent.manufacturer} ${previousComponent.model}`} · lote {lotById.get(releasedItem.lot_id) ?? "—"}</p> : null}
                   <form action={addBuildComponent} className="mt-3 space-y-3">
                     <input type="hidden" name="buildId" value={id} />
                     <input type="hidden" name="slotKey" value={slot} />
@@ -214,7 +218,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
                     <button className="h-9 rounded-lg border border-[#cdddc7] px-3 text-sm font-semibold text-[#315b3c] hover:bg-[#f1f5ed] disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!options.length}>Reservar neste slot</button>
                   </form>
                   </>
-                ) : releasedItem && previousComponent && !Array.isArray(previousComponent) ? <p className="mt-3 text-sm text-[#718276]">{previousComponent.manufacturer} {previousComponent.model} · lote {lotById.get(releasedItem.lot_id) ?? "—"} · reserva liberada</p> : <p className="mt-3 text-sm text-[#9aa79c]">Não selecionado</p>}
+                ) : releasedItem && previousComponent && !Array.isArray(previousComponent) ? <p className="mt-3 text-sm text-[#718276]">{previousComponent.description || `${previousComponent.manufacturer} ${previousComponent.model}`} · lote {lotById.get(releasedItem.lot_id) ?? "—"} · reserva liberada</p> : <p className="mt-3 text-sm text-[#9aa79c]">Não selecionado</p>}
               </article>
             );
           })}

@@ -9,6 +9,7 @@ import {
   specChoices,
   specFields,
 } from "@/lib/inventory/specs";
+import { generateComponentDescription } from "@/lib/inventory/description";
 
 type FormState = { error: "invalid-input" | "invalid-specs" | "save-failed" | null };
 type Props = { action: (state: FormState, formData: FormData) => Promise<FormState> };
@@ -28,18 +29,29 @@ export function ComponentForm({ action }: Props) {
   const [formState, formAction, isPending] = useActionState(action, { error: null });
   const [category, setCategory] = useState<ComponentCategory>("CPU");
   const [specValues, setSpecValues] = useState<Record<string, string>>({});
-  const [description, setDescription] = useState("");
   const [manufacturer, setManufacturer] = useState("");
   const [model, setModel] = useState("");
   const [quantity, setQuantity] = useState("");
   const [lotCode, setLotCode] = useState("");
   const [lotNotes, setLotNotes] = useState("");
-  const [showDescription, setShowDescription] = useState(false);
   const [showLotDetails, setShowLotDetails] = useState(false);
 
   function updateSpecValue(key: string, value: string) {
     setSpecValues((current) => ({ ...current, [key]: value }));
   }
+
+  const previewSpecs: Record<string, unknown> = {};
+  for (const field of specFields[category]) {
+    const value = specValues[field.key]?.trim();
+    if (!value || value === "__other__") continue;
+    if (field.type === "boolean") previewSpecs[field.key] = value === "true";
+    else if (field.type === "number") {
+      if (Number.isFinite(Number(value))) previewSpecs[field.key] = Number(value);
+    } else if (field.type === "text-list") previewSpecs[field.key] = value.split(",").map((item) => item.trim()).filter(Boolean);
+    else if (field.type === "number-list") previewSpecs[field.key] = value.split(",").map(Number).filter(Number.isFinite);
+    else previewSpecs[field.key] = value;
+  }
+  const generatedDescription = generateComponentDescription(category, manufacturer, model, previewSpecs);
 
   function renderSpecField(field: (typeof specFields)[ComponentCategory][number]) {
     const value = specValues[field.key] ?? "";
@@ -141,9 +153,9 @@ export function ComponentForm({ action }: Props) {
       {formState.error ? (
         <p role="alert" className="rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">
           {formState.error === "invalid-input"
-            ? "Confira fabricante, modelo e quantidade. Os dados preenchidos foram mantidos."
+            ? "Confira o fabricante, o modelo do processador (quando aplicável) e a quantidade. Os dados preenchidos foram mantidos."
             : formState.error === "invalid-specs"
-              ? "Revise as especificações técnicas. Os dados preenchidos foram mantidos."
+              ? "Informe ao menos uma especificação relevante para gerar a descrição e revise os dados técnicos. Os dados preenchidos foram mantidos."
               : "Não foi possível cadastrar a peça. Os dados preenchidos foram mantidos; tente novamente."}
         </p>
       ) : null}
@@ -180,39 +192,6 @@ export function ComponentForm({ action }: Props) {
               onChange={(event) => setManufacturer(event.target.value)}
             />
           </div>
-          <div className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
-            <label htmlFor="component-model">Modelo ou código do fabricante (MPN)</label>
-            <input
-              id="component-model"
-              className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal"
-              name="model"
-              required
-              maxLength={140}
-              autoComplete="off"
-              placeholder="Ex.: Core i5-2500"
-              value={model}
-              onChange={(event) => setModel(event.target.value)}
-            />
-            {category === "CPU" ? (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-[#4b7b3b]">
-                <span className="w-full font-normal text-[#718276]">Consulte a ficha do modelo no fabricante para preencher as especificações.</span>
-                <a href={`https://www.intel.com/content/www/us/en/ark/search.html?q=${encodeURIComponent(model || "processor")}`} target="_blank" rel="noreferrer">Pesquisar no Intel ARK ↗</a>
-                <a href="https://www.amd.com/en/products/specifications/processors.html" target="_blank" rel="noreferrer">Pesquisar no catálogo AMD ↗</a>
-              </div>
-            ) : null}
-          </div>
-          <div className="sm:col-span-2">
-            <label className="flex items-center gap-2 text-sm font-medium text-[#294333]">
-              <input type="checkbox" className="size-4 accent-[#315b3c]" checked={showDescription} onChange={(event) => setShowDescription(event.target.checked)} />
-              Adicionar observações da peça
-            </label>
-            {showDescription ? (
-              <label className="mt-3 grid gap-2 text-sm font-medium text-[#294333]">
-                Observações da peça
-                <textarea className="min-h-24 w-full rounded-xl border border-[#d9e2d8] px-3 py-2 font-normal" name="description" maxLength={1000} value={description} onChange={(event) => setDescription(event.target.value)} />
-              </label>
-            ) : null}
-          </div>
         </div>
       </section>
 
@@ -231,6 +210,37 @@ export function ComponentForm({ action }: Props) {
               {field.hint && field.type === "boolean" ? <span className="text-xs font-normal text-[#7b897f]">{field.hint}</span> : null}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold text-[#153b2a]">Descrição e modelo</h2>
+        <p className="mt-1 text-sm leading-6 text-[#718276]">A descrição é formada automaticamente com o fabricante e os dados técnicos mais úteis para identificar e montar esta peça.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
+            Modelo comercial {category === "CPU" ? "(obrigatório para processadores)" : "(opcional)"}
+            <input
+              className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal"
+              name="model"
+              required={category === "CPU"}
+              maxLength={140}
+              autoComplete="off"
+              placeholder={category === "CPU" ? "Ex.: Core i5-2500" : "Ex.: código ou modelo da peça"}
+              value={model}
+              onChange={(event) => setModel(event.target.value)}
+            />
+          </label>
+          {category === "CPU" ? (
+            <div className="sm:col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-[#4b7b3b]">
+              <span className="w-full font-normal text-[#718276]">Consulte a ficha do modelo no fabricante para preencher as especificações.</span>
+              <a href={`https://www.intel.com/content/www/us/en/ark/search.html?q=${encodeURIComponent(model || "processor")}`} target="_blank" rel="noreferrer">Pesquisar no Intel ARK ↗</a>
+              <a href="https://www.amd.com/en/products/specifications/processors.html" target="_blank" rel="noreferrer">Pesquisar no catálogo AMD ↗</a>
+            </div>
+          ) : null}
+          <div className="sm:col-span-2 rounded-xl border border-[#dce6d8] bg-[#f7f9f5] p-4">
+            <p className="text-xs font-semibold tracking-wide text-[#718276] uppercase">Descrição gerada</p>
+            <p className="mt-2 font-medium text-[#294333]">{generatedDescription === manufacturer.trim() ? "Preencha as especificações principais para montar a descrição." : generatedDescription}</p>
+          </div>
         </div>
       </section>
 

@@ -111,8 +111,8 @@ export async function addBuildComponent(formData: FormData) {
 
   const [{ data: build }, { data: selected, error: selectedError }, { data: candidate }, { data: lot }] = await Promise.all([
     supabase.from("builds").select("id, status").eq("id", parsed.data.buildId).maybeSingle(),
-    supabase.from("build_components").select("component_id, lot_id, components(id, category, manufacturer, model, specs)").eq("build_id", parsed.data.buildId).eq("is_active", true),
-    supabase.from("components").select("id, category, manufacturer, model, specs").eq("id", componentId).maybeSingle(),
+    supabase.from("build_components").select("component_id, lot_id, components(id, category, manufacturer, model, description, specs)").eq("build_id", parsed.data.buildId).eq("is_active", true),
+    supabase.from("components").select("id, category, manufacturer, model, description, specs").eq("id", componentId).maybeSingle(),
     supabase.from("component_lots").select("id, component_id, available_quantity").eq("id", lotId).eq("component_id", componentId).maybeSingle(),
   ]);
 
@@ -126,6 +126,7 @@ export async function addBuildComponent(formData: FormData) {
       category: string;
       manufacturer: string;
       model: string;
+      description: string | null;
       specs: unknown;
     } | null;
     if (!part || Array.isArray(part)) return [];
@@ -135,6 +136,7 @@ export async function addBuildComponent(formData: FormData) {
       category: componentCategorySchema.parse(part.category),
       manufacturer: part.manufacturer,
       model: part.model,
+      description: part.description,
       specs: asRecord(part.specs),
     } satisfies CompatibilityPart];
   });
@@ -144,6 +146,7 @@ export async function addBuildComponent(formData: FormData) {
     category: componentCategorySchema.parse(candidate.category),
     manufacturer: candidate.manufacturer,
     model: candidate.model,
+    description: candidate.description,
     specs: asRecord(candidate.specs),
   };
   const compatibility = evaluateCompatibility([...selectedParts, candidatePart]);

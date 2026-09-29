@@ -17,6 +17,7 @@ type BuildPart = {
   category: string;
   manufacturer: string;
   model: string;
+  description?: string | null;
   specs: unknown;
 };
 
@@ -48,7 +49,7 @@ function buildHighlights(items: Array<{ is_active: boolean; quantity?: number; c
       ? `${formatCapacity(rows.reduce((sum, capacity) => sum + capacity, 0))} RAM`
       : ramItems.map((item) => {
         const part = partFromRelation(item.components);
-        return part ? `${part.manufacturer} ${part.model}` : null;
+        return part ? part.description || `${part.manufacturer} ${part.model}` : null;
       }).filter(Boolean).join(" + ");
   };
   const formatStorage = () => {
@@ -59,12 +60,12 @@ function buildHighlights(items: Array<{ is_active: boolean; quantity?: number; c
       const specs = part.specs && typeof part.specs === "object" ? part.specs as Record<string, unknown> : {};
       const capacity = typeof specs.capacityGb === "number" ? specs.capacityGb * (item.quantity ?? 1) : null;
       const kind = typeof specs.type === "string" ? specs.type : "unidade";
-      return capacity ? `${formatCapacity(capacity)} ${kind}` : `${part.manufacturer} ${part.model}`;
+      return capacity ? `${formatCapacity(capacity)} ${kind}` : part.description || `${part.manufacturer} ${part.model}`;
     }).filter(Boolean).join(" + ");
   };
   const cpuPart = cpu ? partFromRelation(cpu.components) : null;
   return [
-    { type: "cpu" as const, text: cpuPart ? `${cpuPart.manufacturer} ${cpuPart.model}` : "Processador pendente" },
+    { type: "cpu" as const, text: cpuPart ? cpuPart.description || `${cpuPart.manufacturer} ${cpuPart.model}` : "Processador pendente" },
     { type: "ram" as const, text: formatRam() },
     { type: "storage" as const, text: formatStorage() },
   ];
@@ -81,7 +82,7 @@ export default async function BuildsPage({ searchParams }: Props) {
   const [{ notice, error: queryError }, supabase] = await Promise.all([searchParams, createClient()]);
   const { data: builds, error } = await supabase
     .from("builds")
-    .select("id, name, status, created_at, updated_at, build_components(id, is_active, quantity, components(category, manufacturer, model, specs))")
+    .select("id, name, status, created_at, updated_at, build_components(id, is_active, quantity, components(category, manufacturer, model, description, specs))")
     .is("removed_at", null)
     .order("updated_at", { ascending: false });
 
