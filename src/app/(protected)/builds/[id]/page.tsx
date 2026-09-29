@@ -6,7 +6,7 @@ import { evaluateCompatibility, type CompatibilityPart, type CompatibilityStatus
 import { componentCategorySchema } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
-import { addBuildComponent, cancelBuild, completeBuild, releaseBuildComponent } from "../actions";
+import { addBuildComponent, cancelBuild, completeBuild, releaseBuildComponent, updateBuild } from "../actions";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string }> };
 
@@ -43,6 +43,7 @@ const errorMessages: Record<string, string> = {
   "release-failed": "Não foi possível liberar essa reserva.",
   "cancel-failed": "Não foi possível cancelar o build.",
   "complete-failed": "O build ainda está incompleto, incompatível ou sem confirmação.",
+  "update-failed": "Não foi possível salvar o nome e as observações do computador.",
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -54,11 +55,11 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
   if (!z.uuid().safeParse(id).success) notFound();
   const supabase = await createClient();
   const [{ data: build }, { data: buildItems, error: itemsError }, { data: inventory }] = await Promise.all([
-    supabase.from("builds").select("id, name, status, notes, created_at, updated_at").eq("id", id).maybeSingle(),
+    supabase.from("builds").select("id, name, status, notes, created_at, updated_at, removed_at").eq("id", id).maybeSingle(),
     supabase.from("build_components").select("id, component_id, lot_id, slot_key, quantity, is_active, compatibility_status, compatibility_confirmed, created_at, components(id, category, manufacturer, model, specs)").eq("build_id", id).order("created_at", { ascending: false }),
     supabase.from("components").select("id, category, manufacturer, model, specs, component_lots(id, lot_code, available_quantity)").order("manufacturer"),
   ]);
-  if (!build) notFound();
+  if (!build || build.removed_at) notFound();
 
   const allBuildItems = buildItems ?? [];
   const activeBuildItems = allBuildItems.filter((item) => item.is_active);
@@ -109,7 +110,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
 
   return (
     <div>
-      <Link href="/builds" className="text-sm font-medium text-[#4b7b3b] hover:underline">← Voltar aos builds</Link>
+      <Link href="/builds" className="text-sm font-medium text-[#4b7b3b] hover:underline">← Voltar para Montar</Link>
       <div className="mt-5 flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
           <p className="text-sm font-semibold tracking-[0.15em] text-[#5da52f] uppercase">Montagem</p>
@@ -120,8 +121,24 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
       </div>
 
       {query.error ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">{errorMessages[query.error] ?? "Não foi possível atualizar o build."}</p> : null}
-      {query.notice ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">{query.notice === "reserved" ? "Peça reservada no estoque." : query.notice === "released" ? "Reserva liberada." : query.notice === "cancelled" ? "Build cancelado e reservas liberadas." : query.notice === "completed" ? "Build concluído; peças marcadas como usadas." : "Atualizado."}</p> : null}
+      {query.notice ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">{query.notice === "reserved" ? "Peça reservada no estoque." : query.notice === "released" ? "Reserva liberada." : query.notice === "cancelled" ? "Build cancelado e reservas liberadas." : query.notice === "completed" ? "Build concluído; peças marcadas como usadas." : query.notice === "updated" ? "Cadastro do computador atualizado." : "Atualizado."}</p> : null}
       {itemsError ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível carregar os componentes do build.</p> : null}
+
+      <details className="mt-6 rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm">
+        <summary className="cursor-pointer font-semibold text-[#315b3c]">Editar nome e observações</summary>
+        <form action={updateBuild} className="mt-4 grid gap-4 sm:grid-cols-2">
+          <input type="hidden" name="buildId" value={id} />
+          <label className="grid gap-2 text-sm font-medium text-[#294333]">
+            Nome do computador
+            <input className="h-11 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="name" maxLength={100} required defaultValue={build.name} />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-[#294333]">
+            Observações
+            <textarea className="min-h-20 rounded-xl border border-[#d9e2d8] px-3 py-2 font-normal" name="notes" maxLength={1000} defaultValue={build.notes ?? ""} />
+          </label>
+          <button className="h-10 w-fit rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138] sm:col-span-2" type="submit">Salvar cadastro</button>
+        </form>
+      </details>
 
       <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[

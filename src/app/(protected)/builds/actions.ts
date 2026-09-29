@@ -32,6 +32,58 @@ export async function createBuild(formData: FormData) {
   redirect(`/builds/${buildId}`);
 }
 
+const updateBuildSchema = z.object({
+  buildId: z.uuid(),
+  name: z.string().trim().min(1).max(100),
+  notes: z.string().trim().max(1000),
+});
+
+export async function updateBuild(formData: FormData) {
+  await requireActiveProfile();
+  const parsed = updateBuildSchema.safeParse({
+    buildId: formData.get("buildId"),
+    name: formData.get("name"),
+    notes: formData.get("notes") ?? "",
+  });
+  if (!parsed.success) redirect("/builds?error=invalid-input");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_build", {
+    p_build_id: parsed.data.buildId,
+    p_name: parsed.data.name,
+    p_notes: parsed.data.notes,
+  });
+  if (error) redirect(`/builds/${parsed.data.buildId}?error=update-failed`);
+  revalidatePath("/builds");
+  revalidatePath(`/builds/${parsed.data.buildId}`);
+  redirect(`/builds/${parsed.data.buildId}?notice=updated`);
+}
+
+const removeBuildSchema = z.object({
+  buildId: z.uuid(),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export async function removeBuild(formData: FormData) {
+  await requireActiveProfile();
+  const parsed = removeBuildSchema.safeParse({
+    buildId: formData.get("buildId"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) redirect("/builds?error=remove-failed");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("remove_build", {
+    p_build_id: parsed.data.buildId,
+    p_reason: parsed.data.reason,
+  });
+  if (error) redirect("/builds?error=remove-failed");
+  revalidatePath("/estoque");
+  revalidatePath("/builds");
+  revalidatePath(`/builds/${parsed.data.buildId}`);
+  redirect("/builds?notice=removed");
+}
+
 const addComponentSchema = z.object({
   buildId: z.uuid(),
   slotKey: z.string().regex(/^(cpu|motherboard|ram-[1-9][0-9]*|gpu-[1-9][0-9]*|storage-[1-9][0-9]*|psu|case|cpu_cooler)$/),

@@ -9,7 +9,7 @@ import { SessionInactivityTimeout } from "./session-inactivity-timeout";
 const navigation = [
   { href: "/dashboard", label: "Visão geral" },
   { href: "/estoque", label: "Estoque" },
-  { href: "/builds", label: "Builds" },
+  { href: "/builds", label: "Montar" },
   { href: "/what-can-i-build", label: "O que posso montar?" },
 ];
 

@@ -17,6 +17,8 @@ const actionLabels: Record<string, string> = {
   "inventory.reserved": "Estoque reservado",
   "inventory.released": "Reserva liberada",
   "build.created": "Build criado",
+  "build.updated": "Computador atualizado",
+  "build.removed": "Computador removido",
   "build.cancelled": "Build cancelado",
   "build.completed": "Build concluído",
 };
