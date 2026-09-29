@@ -265,7 +265,7 @@ export function ComponentForm({ action }: Props) {
               Informar lote ou observações
             </label>
             {showLotDetails ? (
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-4">
                 <label className="grid gap-2 text-sm font-medium text-[#294333]">
                   Código do lote (opcional)
                   <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="lotCode" maxLength={80} value={lotCode} onChange={(event) => setLotCode(event.target.value)} />

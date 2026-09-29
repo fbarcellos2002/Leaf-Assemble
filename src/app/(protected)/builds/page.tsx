@@ -125,7 +125,7 @@ export default async function BuildsPage({ searchParams }: Props) {
                   <input type="hidden" name="buildId" value={build.id} />
                   <label className="grid gap-1 text-xs font-semibold text-[#70453f]">
                     Motivo da remoção <span className="font-normal">(obrigatório)</span>
-                    <textarea className="min-h-20 rounded-lg border border-[#e7cbc5] bg-white p-2 text-sm font-normal text-[#294333]" name="reason" minLength={3} maxLength={500} required placeholder="Informe por que este computador está sendo removido" />
+                    <textarea rows={1} className="w-full rounded-lg border border-[#e7cbc5] bg-white px-3 py-2 text-sm font-normal text-[#294333]" name="reason" minLength={3} maxLength={500} required placeholder="Informe por que este computador está sendo removido" />
                   </label>
                   <button className="h-9 rounded-lg bg-[#8d493f] px-3 text-sm font-semibold text-white hover:bg-[#71382f]" type="submit">Confirmar remoção</button>
                 </form>

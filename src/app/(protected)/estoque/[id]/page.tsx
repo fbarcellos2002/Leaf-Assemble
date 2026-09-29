@@ -196,9 +196,9 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
             <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Quantidade recebida<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="quantity" type="number" min="1" max="100000" required /></label>
             <input className="peer size-4 self-end accent-[#315b3c]" id="receive-stock-details" type="checkbox" />
             <label className="self-end pb-2 text-sm font-medium text-[#294333]" htmlFor="receive-stock-details">Informar lote ou observações</label>
-            <div className="col-span-full hidden grid-cols-1 gap-3 peer-checked:grid sm:grid-cols-2">
+            <div className="col-span-full hidden grid-cols-1 gap-3 peer-checked:grid">
               <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Código do lote (opcional)<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="lotCode" maxLength={80} /></label>
-              <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Observações (opcional)<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="notes" maxLength={500} /></label>
+              <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Observações (opcional)<input className="h-11 w-full rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="notes" maxLength={500} /></label>
             </div>
             <button className="mt-auto h-11 rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138]" type="submit">Adicionar quantidade</button>
           </form>

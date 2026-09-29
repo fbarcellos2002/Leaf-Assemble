@@ -20,19 +20,21 @@ type Props = {
   optionsBySlot: Record<string, AssemblyOption[]>;
   installedBySlot: Record<string, InstalledPart>;
   canEdit: boolean;
+  motherboardHasM2: boolean;
 };
 
-const positions: Record<string, { left: number; top: number; short: string }> = {
-  cpu: { left: 60, top: 28, short: "CPU" },
-  motherboard: { left: 42, top: 55, short: "Placa-mãe" },
-  "gpu-1": { left: 69, top: 70, short: "GPU 1" },
-  "gpu-2": { left: 51, top: 78, short: "GPU 2" },
-  "storage-1": { left: 28, top: 33, short: "SSD 1" },
-  "storage-2": { left: 28, top: 43, short: "SSD 2" },
-  "storage-3": { left: 28, top: 53, short: "SSD 3" },
-  psu: { left: 28, top: 82, short: "Fonte" },
-  case: { left: 91, top: 83, short: "Gabinete" },
-  cpu_cooler: { left: 54, top: 17, short: "Cooler" },
+const calloutPositions: Record<string, { anchorX: number; anchorY: number; labelY: number; side: "left" | "right" }> = {
+  cpu: { anchorX: 425, anchorY: 190, labelY: 42, side: "right" },
+  motherboard: { anchorX: 265, anchorY: 310, labelY: 270, side: "left" },
+  "gpu-1": { anchorX: 480, anchorY: 414, labelY: 445, side: "right" },
+  "gpu-2": { anchorX: 480, anchorY: 478, labelY: 520, side: "right" },
+  "storage-1": { anchorX: 182, anchorY: 226, labelY: 178, side: "left" },
+  "storage-2": { anchorX: 182, anchorY: 302, labelY: 330, side: "left" },
+  "storage-3": { anchorX: 182, anchorY: 378, labelY: 390, side: "left" },
+  "storage-4": { anchorX: 435, anchorY: 328, labelY: 246, side: "right" },
+  psu: { anchorX: 230, anchorY: 520, labelY: 570, side: "left" },
+  case: { anchorX: 681, anchorY: 550, labelY: 590, side: "right" },
+  cpu_cooler: { anchorX: 425, anchorY: 151, labelY: 115, side: "right" },
 };
 
 const statusLabels: Record<string, string> = {
@@ -42,49 +44,72 @@ const statusLabels: Record<string, string> = {
   unknown: "Dados insuficientes",
 };
 
-function CaseIllustration() {
+function CaseIllustration({
+  slots,
+  selectedSlot,
+  motherboardHasM2,
+}: Pick<Props, "slots"> & { selectedSlot: string; motherboardHasM2: boolean }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 700 540" className="absolute inset-0 h-full w-full" fill="none">
+    <svg aria-hidden="true" viewBox="0 0 900 640" className="absolute inset-0 h-full w-full" fill="none">
       <defs>
-        <linearGradient id="case-metal" x1="96" y1="47" x2="593" y2="475" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#263b30" />
+        <linearGradient id="case-metal" x1="112" y1="45" x2="694" y2="604" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#304a38" />
           <stop offset="1" stopColor="#101b16" />
         </linearGradient>
-        <linearGradient id="glass" x1="130" y1="75" x2="520" y2="440" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#dbe9dc" stopOpacity=".12" />
-          <stop offset="1" stopColor="#8eb49a" stopOpacity=".025" />
+        <linearGradient id="glass" x1="164" y1="74" x2="650" y2="560" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#dbe9dc" stopOpacity=".1" />
+          <stop offset="1" stopColor="#8eb49a" stopOpacity=".02" />
         </linearGradient>
       </defs>
-      <path d="M110 55 558 40l38 24v399l-32 30H110l-27-29V82l27-27Z" fill="url(#case-metal)" stroke="#63816c" strokeWidth="3" />
-      <path d="m129 78 393-13 22 15v353l-24 22H127l-17-20V98l19-20Z" fill="url(#glass)" stroke="#94ad98" strokeOpacity=".55" strokeWidth="2" />
-      <path d="M108 98h31v326h-31M536 79h35v351h-35" stroke="#829887" strokeOpacity=".45" strokeWidth="2" />
-      <circle cx="557" cy="121" r="18" stroke="#94ad98" strokeOpacity=".55" strokeWidth="3" />
-      <circle cx="557" cy="121" r="5" fill="#78927c" />
-      <rect x="216" y="116" width="254" height="243" rx="8" fill="#183126" fillOpacity=".76" stroke="#6c8b73" strokeWidth="3" />
-      <path d="M232 133h190v197H232z" fill="#263b30" stroke="#78957c" strokeWidth="2" />
-      <path d="M282 152h68v64h-68z" fill="#101a15" stroke="#9cb39e" strokeWidth="2" />
-      <path d="M291 161h50v46h-50z" fill="#31483a" stroke="#809b84" />
-      <path d="M364 152h13v151h-13m19-151h13v151h-13m19-151h13v151h-13" stroke="#a2bca5" strokeWidth="4" />
-      <path d="M251 241h161v23H251zM251 276h161v23H251zM251 311h161v17H251z" fill="#15251c" stroke="#66816c" strokeWidth="2" />
-      <path d="M261 249h143m-143 35h143m-143 34h143" stroke="#94ae98" strokeOpacity=".65" strokeWidth="2" />
-      <rect x="170" y="156" width="32" height="133" rx="4" fill="#1b2b22" stroke="#607968" strokeWidth="2" />
-      <rect x="175" y="165" width="22" height="32" rx="3" fill="#30483a" />
-      <rect x="175" y="205" width="22" height="32" rx="3" fill="#30483a" />
-      <rect x="175" y="245" width="22" height="32" rx="3" fill="#30483a" />
-      <rect x="218" y="387" width="291" height="43" rx="5" fill="#111b16" stroke="#76927a" strokeWidth="2" />
-      <path d="M234 397h185v24H234z" fill="#253b2e" stroke="#62806a" />
-      <rect x="127" y="365" width="68" height="75" rx="7" fill="#1b2b22" stroke="#78947d" strokeWidth="2" />
-      <circle cx="161" cy="402" r="23" stroke="#9bb29e" strokeOpacity=".7" strokeWidth="3" />
-      <circle cx="161" cy="402" r="7" fill="#8ba58f" />
-      <path d="M151 383v38m19-38v38m-29-29h39m-39 19h39" stroke="#79947d" strokeWidth="2" />
-      <path d="M94 464h489" stroke="#6d8772" strokeWidth="3" />
-      <path d="M150 480h47m322 0h47" stroke="#879d8a" strokeWidth="7" strokeLinecap="round" />
-      <text x="350" y="514" textAnchor="middle" fill="#829588" fontSize="13" letterSpacing="3">GABINETE GENÉRICO · VISÃO LATERAL</text>
+      <path d="m145 54 510-16 39 28v520l-30 26H145l-26-28V82l26-28Z" fill="url(#case-metal)" stroke="#75937a" strokeWidth="4" />
+      <path d="m166 78 461-15 26 18v480l-24 22H160l-18-21V99l24-21Z" fill="url(#glass)" stroke="#a0b7a2" strokeOpacity=".6" strokeWidth="3" />
+      <path d="M142 102h22v452h-22m489-471h25v467h-25" stroke="#849b88" strokeOpacity=".55" strokeWidth="3" />
+      <circle cx="649" cy="130" r="27" stroke="#9ab39c" strokeOpacity=".7" strokeWidth="4" /><circle cx="649" cy="130" r="7" fill="#849f87" />
+      <rect x="250" y="91" width="349" height="453" rx="8" fill="#1d3427" fillOpacity=".92" stroke="#86a18a" strokeWidth="4" />
+      <path d="M270 111h309v412H270z" fill="#293f30" stroke="#6f8b74" strokeWidth="2" />
+      <circle cx="284" cy="126" r="5" fill="#9bb29e" /><circle cx="565" cy="126" r="5" fill="#9bb29e" /><circle cx="284" cy="509" r="5" fill="#9bb29e" /><circle cx="565" cy="509" r="5" fill="#9bb29e" />
+      <rect x="365" y="142" width="119" height="112" rx="7" fill="#14241a" stroke="#b2c7b3" strokeWidth="3" />
+      <rect x="378" y="155" width="93" height="86" rx="4" fill="#46604a" stroke="#8ba38e" strokeWidth="2" />
+      <path d="M388 165h73v66h-73z" stroke="#b1c4b2" strokeOpacity=".55" strokeWidth="2" />
+      <text x="424" y="203" textAnchor="middle" fill="#d7e5d7" fontSize="15" fontWeight="700">CPU</text>
+      <circle cx="424" cy="197" r="69" stroke="#718c76" strokeOpacity=".8" strokeWidth="5" strokeDasharray="7 6" />
+      <path d="M510 132h20v114h-20zM540 132h20v114h-20zM570 132h12v114h-12z" fill="#91aa94" stroke="#d0e0d0" strokeWidth="2" />
+      <path d="M519 144v88m30-88v88m27-88v88" stroke="#273d2d" strokeWidth="3" />
+      <text x="545" y="267" textAnchor="middle" fill="#a9bcaa" fontSize="12">DIMM</text>
+      <path d="M308 286h236v16H308z" fill="#17271d" stroke="#7d987f" strokeWidth="2" />
+      {motherboardHasM2 ? <g><rect x="357" y="311" width="158" height="27" rx="4" fill="#18291e" stroke="#9ab39c" strokeWidth="2" /><rect x="369" y="316" width="123" height="17" rx="2" fill="#56745a" /><circle cx="507" cy="324" r="3" fill="#d3e1d3" /><text x="427" y="330" textAnchor="middle" fill="#d9e7d9" fontSize="10" fontWeight="700">M.2 / NVMe</text></g> : null}
+      <path d="M290 384h290v38H290z" fill="#101c15" stroke="#93ae96" strokeWidth="3" />
+      <path d="M306 392h260v23H306z" fill="#3d5942" stroke="#78947c" strokeWidth="2" />
+      <path d="M322 400h210" stroke="#adc2ae" strokeOpacity=".6" strokeWidth="3" />
+      <path d="M290 447h290v38H290z" fill="#101c15" stroke="#93ae96" strokeWidth="3" />
+      <path d="M306 455h260v23H306z" fill="#3d5942" stroke="#78947c" strokeWidth="2" />
+      <path d="M322 463h210" stroke="#adc2ae" strokeOpacity=".6" strokeWidth="3" />
+      <path d="M310 358h270m-270 96h270" stroke="#b3c6b4" strokeOpacity=".52" strokeWidth="3" />
+      <rect x="160" y="197" width="72" height="61" rx="5" fill="#17271d" stroke="#78947c" strokeWidth="3" /><rect x="168" y="205" width="56" height="45" rx="3" fill="#344c38" stroke="#a5bba7" />
+      <rect x="160" y="273" width="72" height="61" rx="5" fill="#17271d" stroke="#78947c" strokeWidth="3" /><rect x="168" y="281" width="56" height="45" rx="3" fill="#344c38" stroke="#a5bba7" />
+      <rect x="160" y="349" width="72" height="61" rx="5" fill="#17271d" stroke="#78947c" strokeWidth="3" /><rect x="168" y="357" width="56" height="45" rx="3" fill="#344c38" stroke="#a5bba7" />
+      <rect x="165" y="463" width="112" height="89" rx="8" fill="#18291e" stroke="#819b85" strokeWidth="3" />
+      <circle cx="221" cy="507" r="31" stroke="#a0b6a2" strokeWidth="3" /><circle cx="221" cy="507" r="7" fill="#8da890" />
+      <path d="M221 480v54m-27-27h54m-46-19 38 38m0-38-38 38" stroke="#728c76" strokeWidth="2" />
+      <path d="M120 605h585" stroke="#829886" strokeWidth="4" /><path d="M208 618h54m320 0h54" stroke="#a0b39f" strokeWidth="8" strokeLinecap="round" />
+      <text x="425" y="633" textAnchor="middle" fill="#91a493" fontSize="12" letterSpacing="3">PLACA-MÃE ATX · VISÃO LATERAL</text>
+      {slots.filter((slot) => !slot.slot.startsWith("ram-")).map((slot) => {
+        const point = calloutPositions[slot.slot];
+        if (!point) return null;
+        const endX = point.side === "left" ? 190 : 720;
+        const bendX = point.side === "left" ? 205 : 700;
+        const active = selectedSlot === slot.slot;
+        return <g key={slot.slot}>
+          <path d={`M ${point.anchorX} ${point.anchorY} H ${bendX} V ${point.labelY} H ${endX}`} stroke={active ? "#b3ef81" : "#8aaa8d"} strokeWidth={active ? 3 : 2} strokeOpacity={active ? ".98" : ".78"} />
+          <circle cx={point.anchorX} cy={point.anchorY} r={active ? 7 : 5} fill={active ? "#b3ef81" : "#a1c4a4"} stroke="#15241a" strokeWidth="2" />
+          <circle cx={endX} cy={point.labelY} r="3.5" fill={active ? "#b3ef81" : "#a1c4a4"} />
+        </g>;
+      })}
     </svg>
   );
 }
 
-export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, canEdit }: Props) {
+export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, canEdit, motherboardHasM2 }: Props) {
   const [selectedSlot, setSelectedSlot] = useState(slots[0]?.slot ?? "cpu");
   const activeSlot = slots.find((slot) => slot.slot === selectedSlot) ?? slots[0];
   const activePart = activeSlot ? installedBySlot[activeSlot.slot] : undefined;
@@ -99,10 +124,10 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
       </div>
       <div className="grid lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,.8fr)]">
         <div className="min-h-[440px] border-b border-[#e7ede4] bg-[#111a15] p-3 sm:p-5 lg:border-r lg:border-b-0">
-          <div className="relative mx-auto aspect-[700/540] max-w-[780px] overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_52%_48%,#26382d_0%,#141d17_62%,#0e1511_100%)]">
-            <CaseIllustration />
-            {slots.filter((slot) => !slot.slot.startsWith("ram-")).map((slot) => {
-              const position = positions[slot.slot] ?? { left: 50, top: 50, short: slot.label };
+          <div className="relative mx-auto aspect-[900/640] max-w-[900px] overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_52%_48%,#26382d_0%,#141d17_62%,#0e1511_100%)]">
+            <CaseIllustration slots={slots} selectedSlot={selectedSlot} motherboardHasM2={motherboardHasM2 || slots.some((slot) => slot.slot === "storage-4")} />
+            {slots.filter((slot) => !slot.slot.startsWith("ram-") && calloutPositions[slot.slot]).map((slot) => {
+              const position = calloutPositions[slot.slot];
               const active = selectedSlot === slot.slot;
               const installed = installedBySlot[slot.slot];
               return (
@@ -113,19 +138,18 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
                   aria-label={`${slot.label}${installed ? `: ${installed.description}` : ": vazio"}`}
                   aria-pressed={active}
                   title={installed?.description ?? slot.label}
-                  style={{ left: `${position.left}%`, top: `${position.top}%` }}
-                  className={`absolute z-10 flex max-w-[155px] -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold shadow-lg transition sm:px-2.5 sm:text-xs ${active ? "border-[#d0f3a9] bg-[#8fcf58] text-[#122318] ring-4 ring-[#8fcf58]/25" : installed ? "border-[#b6d995] bg-[#315b3c] text-white" : "border-white/30 bg-[#1c2b21]/90 text-[#d5e1d6] hover:border-[#a8d77e] hover:bg-[#294333]"}`}
+                  style={{ left: position.side === "left" ? "1%" : "82%", top: `${(position.labelY / 640) * 100}%`, width: position.side === "left" ? "21%" : "17%" }}
+                  className={`absolute z-10 -translate-y-1/2 overflow-hidden rounded-lg border px-2 py-1.5 text-left text-[9px] font-semibold leading-tight shadow-lg transition sm:px-2.5 sm:py-2 sm:text-xs ${active ? "border-[#b3ef81] bg-[#315b3c] text-white ring-2 ring-[#8fcf58]/30" : installed ? "border-[#9cbe91] bg-[#1e3828]/95 text-[#edf6e9] hover:border-[#b3ef81]" : "border-white/30 bg-[#18251d]/95 text-[#d5e1d6] hover:border-[#a8d77e] hover:bg-[#294333]"}`}
                 >
-                  <span className={`size-1.5 shrink-0 rounded-full ${installed ? "bg-[#b8e68e]" : active ? "bg-[#294333]" : "bg-[#a5b5a7]"}`} />
-                  <span className="truncate">{position.short}</span>
+                  <span className="block truncate">{installed?.description ?? slot.label}</span>
                 </button>
               );
             })}
           </div>
           <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-[#a6b4a8]">
-            <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#8fcf58]" />encaixe selecionado</span>
+            <span className="flex items-center gap-2"><span className="h-0.5 w-5 bg-[#b3ef81]" />fio-guia do encaixe selecionado</span>
             <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#b8e68e]" />peça instalada</span>
-            <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#a5b5a7]" />encaixe vazio</span>
+            {motherboardHasM2 ? <span>Slot M.2 disponível conforme a placa-mãe selecionada</span> : null}
           </div>
         </div>
 

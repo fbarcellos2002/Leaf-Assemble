@@ -30,6 +30,12 @@ textarea {
   max-width: 100%;
 }
 
+textarea {
+  field-sizing: content;
+  min-height: 2.75rem;
+  resize: vertical;
+}
+
 button:not(:disabled) {
   cursor: pointer;
   transition: transform 110ms ease, filter 110ms ease;
@@ -54,6 +60,7 @@ input[type="number"]::-webkit-outer-spin-button {
   color-scheme: dark;
   --background: #111a14;
   --foreground: #e4ece2;
+  --surface: #19251c;
 }
 
 [data-theme="dark"].bg-\[\#f5f7f2\],
@@ -65,7 +72,32 @@ input[type="number"]::-webkit-outer-spin-button {
 
 [data-theme="dark"] .bg-white,
 [data-theme="dark"] [class~="bg-white/90"] {
-  background-color: #1b281f !important;
+  background-color: var(--surface) !important;
+}
+
+[data-theme="dark"] aside.bg-white {
+  background-color: #153b2a !important;
+  border-color: #31583f !important;
+}
+
+[data-theme="dark"] aside nav a[aria-current="page"] {
+  background-color: #315b3c !important;
+  color: #f0f7ed !important;
+}
+
+[data-theme="dark"] aside nav a:not([aria-current="page"]):hover,
+[data-theme="dark"] aside button:hover {
+  background-color: #214a33 !important;
+}
+
+[data-theme="dark"] aside [class~="bg-[#f5f7f2]"] {
+  background-color: #214a33 !important;
+}
+
+[data-theme="dark"] .lg\:hidden.bg-white,
+[data-theme="dark"] div.bg-white.lg\:hidden {
+  background-color: #153b2a !important;
+  border-color: #31583f !important;
 }
 
 [data-theme="dark"] [class~="bg-[#eff4eb]"],
@@ -146,8 +178,25 @@ input[type="number"]::-webkit-outer-spin-button {
 [data-theme="dark"] select,
 [data-theme="dark"] textarea {
   border-color: #35483a;
-  background-color: #17221a;
+  background-color: #141e17;
   color: #e4ece2;
+}
+
+[data-theme="dark"] button[class~="bg-[#153b2a]"],
+[data-theme="dark"] a[class~="bg-[#153b2a]"] {
+  background-color: #153b2a !important;
+  color: #f2f7f0 !important;
+}
+
+[data-theme="dark"] [class~="bg-[#5da52f]"],
+[data-theme="dark"] [class~="bg-[#4b8d26]"] {
+  background-color: #153b2a !important;
+  color: #f2f7f0 !important;
+}
+
+[data-theme="dark"] button[class~="bg-[#153b2a]"]:hover,
+[data-theme="dark"] a[class~="bg-[#153b2a]"]:hover {
+  background-color: #205138 !important;
 }
 
 [data-theme="dark"] input::placeholder,

@@ -227,7 +227,7 @@ export const specChoices: Partial<Record<ComponentCategory, Record<string, reado
   },
   STORAGE: {
     type: ["SSD", "HDD", "SSHD", "NVMe SSD", "SATA SSD"],
-    interface: ["SATA", "SATA II", "SATA III", "NVMe", "PCIe 3.0 x4", "PCIe 4.0 x4", "PCIe 5.0 x4", "USB"],
+    interface: ["SATA", "SATA II", "SATA III", "M.2 SATA", "NVMe", "M.2 NVMe", "PCIe 3.0 x4", "PCIe 4.0 x4", "PCIe 5.0 x4", "USB"],
     formFactor: ["M.2 2230", "M.2 2242", "M.2 2260", "M.2 2280", "M.2 22110", "2,5\"", "3,5\""],
   },
   PSU: {

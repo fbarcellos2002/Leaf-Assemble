@@ -20,7 +20,7 @@ export default async function NewBuildPage({ searchParams }: Props) {
         </label>
         <label className="grid gap-2 text-sm font-medium text-[#294333]">
           Observações
-          <textarea className="min-h-28 rounded-xl border border-[#d9e2d8] px-3 py-2 font-normal" name="notes" maxLength={1000} />
+          <textarea rows={1} className="w-full rounded-xl border border-[#d9e2d8] px-3 py-2 font-normal" name="notes" maxLength={1000} />
         </label>
         <button className="h-12 rounded-xl bg-[#153b2a] px-6 font-semibold text-white hover:bg-[#205138]" type="submit">Criar rascunho</button>
       </form>

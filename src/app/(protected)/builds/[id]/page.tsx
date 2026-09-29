@@ -15,8 +15,8 @@ const categories = [
   { slot: "cpu", category: "CPU", label: "Processador" },
   { slot: "motherboard", category: "MOTHERBOARD", label: "Placa-mãe" },
   ...Array.from({ length: 4 }, (_, index) => ({ slot: `ram-${index + 1}`, category: "RAM", label: `Memória ${index + 1}` })),
-  ...Array.from({ length: 2 }, (_, index) => ({ slot: `gpu-${index + 1}`, category: "GPU", label: `Placa de vídeo ${index + 1}` })),
-  ...Array.from({ length: 3 }, (_, index) => ({ slot: `storage-${index + 1}`, category: "STORAGE", label: `Armazenamento ${index + 1}` })),
+  ...Array.from({ length: 2 }, (_, index) => ({ slot: `gpu-${index + 1}`, category: "GPU", label: `GPU · PCI Express ${index + 1}` })),
+  ...Array.from({ length: 3 }, (_, index) => ({ slot: `storage-${index + 1}`, category: "STORAGE", label: `SSD / HDD · Baia ${index + 1}` })),
   { slot: "psu", category: "PSU", label: "Fonte" },
   { slot: "case", category: "CASE", label: "Gabinete" },
   { slot: "cpu_cooler", category: "CPU_COOLER", label: "Cooler do processador" },
@@ -94,6 +94,14 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
   });
   const compatibility = evaluateCompatibility(selectedParts);
   const cpuPart = selectedParts.find((part) => part.category === "CPU");
+  const motherboardPart = selectedParts.find((part) => part.category === "MOTHERBOARD");
+  const boardStorageInterfaces = motherboardPart?.specs.storageInterfaces;
+  const motherboardHasM2 = Array.isArray(boardStorageInterfaces)
+    && boardStorageInterfaces.some((item) => typeof item === "string" && item.toLocaleLowerCase("pt-BR").includes("m.2"));
+  const m2AlreadySelected = itemsBySlot.has("storage-4");
+  const buildSlots = categories.flatMap((slot) => slot.slot === "storage-3" && (motherboardHasM2 || m2AlreadySelected)
+    ? [slot, { slot: "storage-4", category: "STORAGE", label: "SSD M.2" }]
+    : [slot]);
   const gpuRequired = Boolean(cpuPart && cpuPart.specs.integratedGraphics !== true);
   const canEdit = build.status !== "COMPLETED" && build.status !== "CANCELLED";
   const completeReady = build.status === "READY";
@@ -108,9 +116,18 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
   ].filter(Boolean).length;
   const requiredSlotCount = 6 + (gpuRequired ? 1 : 0);
   const statusLabel = build.status === "DRAFT" ? "Rascunho" : build.status === "INCOMPLETE" ? "Incompleto" : build.status === "READY" ? "Pronto" : build.status === "COMPLETED" ? "Concluído" : "Cancelado";
-  const optionsBySlot: Record<string, AssemblyOption[]> = Object.fromEntries(categories.map(({ slot, category }) => [
+  const optionsBySlot: Record<string, AssemblyOption[]> = Object.fromEntries(buildSlots.map(({ slot, category }) => [
     slot,
     (inventory ?? []).filter((part) => part.category === category).flatMap((part) => {
+      const specs = asRecord(part.specs);
+      if (slot === "storage-4") {
+        const formFactor = typeof specs.formFactor === "string" ? specs.formFactor.toLocaleLowerCase("pt-BR") : "";
+        const storageInterface = typeof specs.interface === "string" ? specs.interface.toLocaleLowerCase("pt-BR") : "";
+        const supportedInterfaces = Array.isArray(boardStorageInterfaces)
+          ? boardStorageInterfaces.filter((item): item is string => typeof item === "string").map((item) => item.toLocaleLowerCase("pt-BR"))
+          : [];
+        if (!motherboardHasM2 || !formFactor.startsWith("m.2") || !supportedInterfaces.includes(storageInterface)) return [];
+      }
       const lots = Array.isArray(part.component_lots) ? part.component_lots : [];
       return lots.filter((lot) => lot.available_quantity > 0).map((lot) => ({
         selection: `${part.id}~${lot.id}`,
@@ -154,7 +171,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
 
       <details className="mt-6 rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm">
         <summary className="cursor-pointer font-semibold text-[#315b3c]">Editar nome e observações</summary>
-        <form action={updateBuild} className="mt-4 grid gap-4 sm:grid-cols-2">
+        <form action={updateBuild} className="mt-4 grid grid-cols-1 gap-4">
           <input type="hidden" name="buildId" value={id} />
           <label className="grid gap-2 text-sm font-medium text-[#294333]">
             Nome do computador
@@ -162,9 +179,9 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
           </label>
           <label className="grid gap-2 text-sm font-medium text-[#294333]">
             Observações
-            <textarea className="min-h-20 rounded-xl border border-[#d9e2d8] px-3 py-2 font-normal" name="notes" maxLength={1000} defaultValue={build.notes ?? ""} />
+            <textarea rows={1} className="w-full rounded-xl border border-[#d9e2d8] px-3 py-2 font-normal" name="notes" maxLength={1000} defaultValue={build.notes ?? ""} />
           </label>
-          <button className="h-10 w-fit rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138] sm:col-span-2" type="submit">Salvar cadastro</button>
+          <button className="h-10 w-fit rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138]" type="submit">Salvar cadastro</button>
         </form>
       </details>
 
@@ -177,7 +194,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
         ].map(([label, value]) => <div key={label} className="rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm"><p className="text-sm text-[#718276]">{label}</p><p className="mt-2 text-xl font-semibold text-[#153b2a]">{value}</p></div>)}
       </section>
 
-      <BuildAssembly buildId={id} slots={categories} optionsBySlot={optionsBySlot} installedBySlot={installedBySlot} canEdit={canEdit} />
+      <BuildAssembly buildId={id} slots={buildSlots} optionsBySlot={optionsBySlot} installedBySlot={installedBySlot} canEdit={canEdit} motherboardHasM2={motherboardHasM2} />
 
       <section className="mt-7 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-semibold text-[#153b2a]">Verificação de compatibilidade</h2>
