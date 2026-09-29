@@ -12,7 +12,7 @@ create table public.icecat_catalog (
   image_url text,
   updated_at timestamptz,
   search_text text generated always as (
-    lower(concat_ws(' ', supplier_name, model_name, product_code, array_to_string(gtins, ' ')))
+    supplier_name || ' ' || model_name || ' ' || product_code
   ) stored,
   constraint icecat_catalog_icecat_id_positive check (icecat_id > 0),
   constraint icecat_catalog_product_code_not_blank check (length(trim(product_code)) > 0),

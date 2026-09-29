@@ -13,6 +13,11 @@ function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function looksLikeBrandSearch(term: string) {
+  const tokens = normalize(term).split(/\s+/).filter(Boolean);
+  return tokens.length === 1 && !/\d/.test(term);
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireAdminProfile();
@@ -39,8 +44,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createAdminClient();
     const tokens = [...new Set(normalize(term).split(/\s+/).filter((token) => token.length >= 2))];
-    const searchableTokens = tokens.filter((token) => token.length >= 3);
-    if (searchableTokens.length === 0) {
+    if (tokens.length === 0) {
       return NextResponse.json({ results: [], needsMoreInput: true }, { headers: { "Cache-Control": "no-store" } });
     }
 
@@ -49,10 +53,13 @@ export async function POST(request: NextRequest) {
       .select("icecat_id, supplier_name, product_code, model_name, category_id, image_url")
       .order("model_name")
       .limit(100);
-    for (const token of searchableTokens) query = query.ilike("search_text", `%${escapeLike(token)}%`);
+    for (const token of tokens) query = query.ilike("search_text", `%${escapeLike(token)}%`);
     const { data, error } = await query;
 
-    if (error) return NextResponse.json({ error: "catalog-unavailable" }, { status: 503 });
+    if (error) {
+      console.error("Icecat catalog search failed", { code: error.code });
+      return NextResponse.json({ error: "catalog-unavailable" }, { status: 503 });
+    }
 
     const normalizedQuery = normalize(term);
     const rank = (item: { supplier_name: string; product_code: string; model_name: string }) => {
@@ -71,6 +78,22 @@ export async function POST(request: NextRequest) {
       .sort((left, right) => rank(right) - rank(left) || left.model_name.localeCompare(right.model_name))
       .slice(0, 12);
 
+    if (results.length === 0 && looksLikeBrandSearch(term)) {
+      const { data: matchingBrands, error: brandError } = await supabase
+        .from("icecat_catalog")
+        .select("supplier_name")
+        .ilike("supplier_name", `%${escapeLike(term)}%`)
+        .limit(1);
+      if (brandError) {
+        console.error("Icecat brand search failed", { code: brandError.code });
+        return NextResponse.json({ error: "catalog-unavailable" }, { status: 503 });
+      }
+
+      if (!matchingBrands?.length) {
+        return NextResponse.json({ results: [], notFound: "brand" }, { headers: { "Cache-Control": "no-store" } });
+      }
+    }
+
     return NextResponse.json({
       results: results.map((item) => ({
         icecatId: String(item.icecat_id),
@@ -80,8 +103,12 @@ export async function POST(request: NextRequest) {
         categoryId: item.category_id,
         imageUrl: item.image_url,
       })),
+      notFound: results.length === 0 ? "product" : null,
     }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
+  } catch (error) {
+    console.error("Icecat catalog search failed", {
+      error: error instanceof Error ? error.name : "unknown",
+    });
     return NextResponse.json({ error: "catalog-unavailable" }, { status: 503 });
   }
 }

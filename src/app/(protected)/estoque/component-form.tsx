@@ -32,13 +32,14 @@ const lookupErrors: Record<string, string> = {
   "not-configured": "Configure ICECAT_USERNAME e ICECAT_API_TOKEN como variáveis privadas no ambiente da aplicação.",
   "not-found": "Nenhuma ficha técnica foi encontrada. Confira o fabricante e o código exato (MPN).",
   "provider-error": "O catálogo não respondeu agora. Tente novamente em instantes.",
-  "catalog-unavailable": "O índice local de produtos ainda não está disponível. Confira a configuração do catálogo Open Icecat.",
+  "catalog-unavailable": "Não foi possível acessar o catálogo Icecat no Supabase. Confira se a tabela icecat_catalog existe e se as credenciais estão corretas.",
   "invalid-input": "Confira a categoria, o fabricante e o código/modelo da peça.",
   unauthorized: "Somente administradores podem consultar e importar fichas técnicas.",
 };
 
 type LookupProduct = { title: string; brand: string; productCode: string; sourceUrl: string; summary: string };
 type CatalogResult = { icecatId: string; supplierName: string; productCode: string; modelName: string; categoryId: number | null; imageUrl: string | null };
+type SearchNotFound = "brand" | "product";
 
 export function ComponentForm({ action }: Props) {
   const lookupController = useRef<AbortController | null>(null);
@@ -49,9 +50,11 @@ export function ComponentForm({ action }: Props) {
   const [manufacturer, setManufacturer] = useState("");
   const [model, setModel] = useState("");
   const [searchText, setSearchText] = useState("");
-  const [activeSearchField, setActiveSearchField] = useState<"manufacturer" | "model" | null>(null);
+  const [selectedSearchQuery, setSelectedSearchQuery] = useState<string | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<CatalogResult[]>([]);
   const [needsMoreSearchInput, setNeedsMoreSearchInput] = useState(false);
+  const [searchNotFound, setSearchNotFound] = useState<SearchNotFound | null>(null);
   const [searchError, setSearchError] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [lookupProduct, setLookupProduct] = useState<LookupProduct | null>(null);
@@ -60,7 +63,10 @@ export function ComponentForm({ action }: Props) {
 
   useEffect(() => {
     const term = searchText.trim();
-    if (term.length < 2) return;
+    if (term.length < 2 || selectedSearchQuery === term) {
+      setIsSearching(false);
+      return;
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(async () => {
@@ -73,18 +79,20 @@ export function ComponentForm({ action }: Props) {
           body: JSON.stringify({ q: term }),
           signal: controller.signal,
         });
-        const result = await response.json() as { error?: string; results?: CatalogResult[]; needsMoreInput?: boolean };
+        const result = await response.json() as { error?: string; results?: CatalogResult[]; needsMoreInput?: boolean; notFound?: SearchNotFound | null };
         if (!response.ok) {
           setSearchResults([]);
-          setSearchError(lookupErrors[result.error ?? ""] ?? "Não foi possível pesquisar no catálogo local.");
+          setSearchNotFound(null);
+          setSearchError(lookupErrors[result.error ?? ""] ?? "Não foi possível pesquisar no catálogo Icecat.");
           return;
         }
         setSearchResults(result.results ?? []);
         setNeedsMoreSearchInput(result.needsMoreInput ?? false);
+        setSearchNotFound(result.notFound ?? null);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setSearchResults([]);
-        setSearchError("Não foi possível pesquisar no catálogo local.");
+        setSearchError("Não foi possível pesquisar no catálogo Icecat.");
       } finally {
         if (!controller.signal.aborted) setIsSearching(false);
       }
@@ -94,7 +102,7 @@ export function ComponentForm({ action }: Props) {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [searchText]);
+  }, [searchText, selectedSearchQuery]);
 
   async function lookupComponent(product: CatalogResult) {
     lookupController.current?.abort();
@@ -137,10 +145,13 @@ export function ComponentForm({ action }: Props) {
   function selectCatalogProduct(product: CatalogResult) {
     setSearchResults([]);
     setNeedsMoreSearchInput(false);
-    setSearchText("");
+    const selectedLabel = `${product.supplierName} ${product.modelName || product.productCode}`;
+    setSelectedSearchQuery(selectedLabel);
+    setSearchText(selectedLabel);
     setSearchError("");
+    setSearchNotFound(null);
     setIsSearching(false);
-    setActiveSearchField(null);
+    setIsSearchOpen(false);
     setSpecValues({});
     setSourceData("");
     setManufacturer(product.supplierName);
@@ -148,18 +159,17 @@ export function ComponentForm({ action }: Props) {
     void lookupComponent(product);
   }
 
-  function updateCatalogSearch(field: "manufacturer" | "model", value: string) {
-    if (field === "manufacturer") {
-      setManufacturer(value);
-    } else {
-      setModel(value);
-    }
-    setActiveSearchField(field);
+  function updateCatalogSearch(value: string) {
+    setSelectedSearchQuery(null);
     setSearchText(value);
+    setIsSearchOpen(true);
     setSearchResults([]);
     setNeedsMoreSearchInput(false);
+    setSearchNotFound(null);
     setSearchError("");
     setIsSearching(value.trim().length >= 2);
+    setManufacturer("");
+    setModel("");
     setSourceData("");
     setLookupProduct(null);
     setSpecValues({});
@@ -167,31 +177,26 @@ export function ComponentForm({ action }: Props) {
     setIsLookingUp(false);
   }
 
-  function focusCatalogSearch(field: "manufacturer" | "model", value: string) {
-    setActiveSearchField(field);
-    if (searchText !== value) {
-      setSearchText(value);
-      setSearchResults([]);
-      setNeedsMoreSearchInput(false);
-      setSearchError("");
-      setIsSearching(value.trim().length >= 2);
-    }
-  }
-
-  function renderCatalogSuggestions(field: "manufacturer" | "model") {
-    const isOpen = activeSearchField === field;
-    const listId = `icecat-${field}-results`;
-    if (!isOpen) return null;
+  function renderCatalogSuggestions() {
+    if (!isSearchOpen || selectedSearchQuery === searchText.trim()) return null;
 
     return (
       <>
-        {isSearching ? <p className="mt-2 text-sm text-[#718276]" role="status">Buscando no índice Icecat…</p> : null}
+        {isSearching ? <p className="mt-2 text-sm text-[#718276]" role="status">Buscando no catálogo Icecat…</p> : null}
         {searchError ? <p className="mt-2 text-sm text-[#8d3c32]" role="alert">{searchError}</p> : null}
         {searchText.trim().length >= 2 && !isSearching && !searchError && searchResults.length === 0 ? (
-          <p className="mt-2 text-sm text-[#718276]" role="status">{needsMoreSearchInput ? "Continue digitando para filtrar o catálogo." : "Nenhum item correspondente no índice. Você ainda pode preencher os dados manualmente."}</p>
+          <p className="mt-2 text-sm text-[#718276]" role={searchNotFound ? "alert" : "status"}>
+            {needsMoreSearchInput
+              ? "Continue digitando para pesquisar no catálogo."
+              : searchNotFound === "brand"
+                ? `A marca “${searchText.trim()}” não foi encontrada no catálogo Icecat sincronizado.`
+                : searchNotFound === "product"
+                  ? `Nenhum produto correspondente a “${searchText.trim()}” foi encontrado no catálogo Icecat sincronizado.`
+                  : "Pesquise uma marca, modelo ou código de produto."}
+          </p>
         ) : null}
         {searchResults.length > 0 ? (
-          <ul id={listId} aria-label="Sugestões de produtos Icecat" className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-auto rounded-xl border border-[#d9e2d8] bg-white shadow-lg">
+          <ul id="icecat-product-results" aria-label="Sugestões de produtos Icecat" className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-auto rounded-xl border border-[#d9e2d8] bg-white shadow-lg">
             {searchResults.map((product, index) => (
               <li key={product.icecatId}>
                 <button
@@ -212,6 +217,22 @@ export function ComponentForm({ action }: Props) {
 
   function updateSpecValue(key: string, value: string) {
     setSpecValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateManualIdentity(field: "manufacturer" | "model", value: string) {
+    if (field === "manufacturer") setManufacturer(value);
+    else setModel(value);
+    setSelectedSearchQuery(null);
+    setSearchText("");
+    setSearchResults([]);
+    setSearchNotFound(null);
+    setNeedsMoreSearchInput(false);
+    setSourceData("");
+    setLookupProduct(null);
+    setSpecValues({});
+    setLookupError("");
+    lookupController.current?.abort();
+    setIsLookingUp(false);
   }
 
   function renderSpecField(field: (typeof specFields)[ComponentCategory][number]) {
@@ -312,6 +333,34 @@ export function ComponentForm({ action }: Props) {
   return (
     <form action={action} className="space-y-8">
       <input type="hidden" name="sourceData" value={sourceData} />
+      <section className="relative z-20 grid gap-2 text-sm font-medium text-[#294333]" onBlur={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (!(nextTarget instanceof Node && event.currentTarget.contains(nextTarget))) setIsSearchOpen(false);
+      }}>
+        <label htmlFor="icecat-product-search">Buscar produto no Icecat</label>
+        <input
+          id="icecat-product-search"
+          className="h-12 rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal"
+          type="search"
+          role="combobox"
+          autoComplete="off"
+          aria-autocomplete="list"
+          aria-controls="icecat-product-results"
+          aria-expanded={isSearchOpen && searchResults.length > 0}
+          placeholder="Marca, modelo ou código do produto"
+          value={searchText}
+          onFocus={() => setIsSearchOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && searchResults.length > 0) {
+              event.preventDefault();
+              selectCatalogProduct(searchResults[0]);
+            }
+            if (event.key === "Escape") setIsSearchOpen(false);
+          }}
+          onChange={(event) => updateCatalogSearch(event.target.value)}
+        />
+        {renderCatalogSuggestions()}
+      </section>
       <section>
         <h2 className="text-lg font-semibold text-[#153b2a]">Identificação</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -328,12 +377,14 @@ export function ComponentForm({ action }: Props) {
                 setLookupError("");
                 lookupController.current?.abort();
                 setIsLookingUp(false);
+                setSelectedSearchQuery(null);
                 setSearchText("");
                 setSearchResults([]);
                 setNeedsMoreSearchInput(false);
+                setSearchNotFound(null);
                 setSearchError("");
                 setIsSearching(false);
-                setActiveSearchField(null);
+                setIsSearchOpen(false);
               }}
               value={category}
             >
@@ -342,10 +393,7 @@ export function ComponentForm({ action }: Props) {
               ))}
             </select>
           </label>
-          <div className="relative grid gap-2 text-sm font-medium text-[#294333]" onBlur={(event) => {
-            const nextTarget = event.relatedTarget;
-            if (!(nextTarget instanceof Node && event.currentTarget.contains(nextTarget))) setActiveSearchField(null);
-          }}>
+          <div className="grid gap-2 text-sm font-medium text-[#294333]">
             <label htmlFor="component-manufacturer">Fabricante</label>
             <input
               id="component-manufacturer"
@@ -354,23 +402,12 @@ export function ComponentForm({ action }: Props) {
               required
               maxLength={100}
               autoComplete="off"
-              placeholder="Comece a digitar uma marca"
+              placeholder="Fabricante"
               value={manufacturer}
-              onFocus={() => focusCatalogSearch("manufacturer", manufacturer)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && searchResults.length > 0) {
-                  event.preventDefault();
-                  selectCatalogProduct(searchResults[0]);
-                }
-              }}
-              onChange={(event) => updateCatalogSearch("manufacturer", event.target.value)}
+              onChange={(event) => updateManualIdentity("manufacturer", event.target.value)}
             />
-            {renderCatalogSuggestions("manufacturer")}
           </div>
-          <div className="relative grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2" onBlur={(event) => {
-            const nextTarget = event.relatedTarget;
-            if (!(nextTarget instanceof Node && event.currentTarget.contains(nextTarget))) setActiveSearchField(null);
-          }}>
+          <div className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
             <label htmlFor="component-model">Modelo ou código do fabricante (MPN)</label>
             <input
               id="component-model"
@@ -379,19 +416,10 @@ export function ComponentForm({ action }: Props) {
               required
               maxLength={140}
               autoComplete="off"
-              placeholder="Ex.: Core i5-2500; as opções aparecem enquanto digita"
+              placeholder="Ex.: Core i5-2500"
               value={model}
-              onFocus={() => focusCatalogSearch("model", model)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && searchResults.length > 0) {
-                  event.preventDefault();
-                  selectCatalogProduct(searchResults[0]);
-                }
-              }}
-              onChange={(event) => updateCatalogSearch("model", event.target.value)}
+              onChange={(event) => updateManualIdentity("model", event.target.value)}
             />
-            {renderCatalogSuggestions("model")}
-            <p className="text-xs font-normal leading-5 text-[#718276]">Busque por marca, modelo ou MPN enquanto digita. Em modelos curtos, continue até haver 3 caracteres úteis, como “i5 250”.</p>
           </div>
           <label className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
             Observações
@@ -399,7 +427,7 @@ export function ComponentForm({ action }: Props) {
           </label>
         </div>
         {isLookingUp ? <p className="mt-4 text-sm text-[#718276]" role="status">Consultando a ficha selecionada no Icecat e preenchendo os dados…</p> : null}
-        <p className="mt-4 text-xs leading-5 text-[#718276]">A busca usa o índice Icecat sincronizado no Supabase; a ficha técnica só é consultada depois que você escolhe uma sugestão.</p>
+        <p className="mt-4 text-xs leading-5 text-[#718276]">Ao selecionar um resultado, a ficha técnica disponível é consultada no Icecat.</p>
         {lookupError ? <p role="alert" className="mt-3 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm leading-6 text-[#8d3c32]">{lookupError}</p> : null}
         {lookupProduct ? (
           <div role="status" className="mt-3 rounded-xl border border-[#dce6d8] bg-[#f8faf6] p-4 text-sm text-[#44594b]">
