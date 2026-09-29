@@ -4,7 +4,7 @@ import { componentCategories, type ComponentCategory } from "@/lib/inventory/spe
 export type InventoryPool = CompatibilityPart & {
   lots: Array<{
     id: string;
-    lotCode: string;
+    lotCode: string | null;
     available: number;
   }>;
 };

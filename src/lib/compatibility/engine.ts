@@ -128,6 +128,18 @@ function ramMotherboard(rams: CompatibilityPart[], board: CompatibilityPart) {
   return results;
 }
 
+function cpuRamFrequency(cpu: CompatibilityPart, ram: CompatibilityPart) {
+  const maxFrequency = numberValue(cpu.specs.maxMemoryFrequencyMhz);
+  const frequency = numberValue(ram.specs.frequencyMhz);
+  if (maxFrequency === undefined || frequency === undefined || frequency <= maxFrequency) return [];
+  return [result(
+    "warning",
+    "A frequência da RAM excede a frequência máxima informada para a CPU.",
+    [cpu, ram],
+    `${frequency} MHz na memória; CPU até ${maxFrequency} MHz`,
+  )];
+}
+
 function coolerSocket(cooler: CompatibilityPart, target: CompatibilityPart) {
   const supported = stringsValue(cooler.specs.supportedSockets);
   const socket = textValue(target.specs.socket);
@@ -320,6 +332,7 @@ export function evaluateCompatibility(parts: CompatibilityPart[]) {
   const checks: CompatibilityResult[] = [];
 
   for (const cpu of cpus) for (const board of boards) checks.push(...cpuMotherboard(cpu, board));
+  for (const cpu of cpus) for (const ram of rams) checks.push(...cpuRamFrequency(cpu, ram));
   for (const board of boards) checks.push(...ramMotherboard(rams, board));
   checks.push(...ramCombination(rams));
   for (const cooler of coolers) {

@@ -7,7 +7,6 @@ type Props = { searchParams: Promise<{ error?: string }> };
 
 const errors: Record<string, string> = {
   "invalid-input": "Confira os campos obrigatórios e os valores informados.",
-  "lot-required": "Informe o código do lote quando cadastrar uma quantidade inicial.",
   "invalid-specs": "Revise as especificações técnicas. Valores numéricos precisam ser positivos e listas devem ser separadas por vírgula.",
   "save-failed": "Não foi possível salvar o componente. Verifique o banco e tente novamente.",
 };

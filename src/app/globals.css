@@ -32,4 +32,26 @@ textarea {
 
 button:not(:disabled) {
   cursor: pointer;
+  transition: transform 110ms ease, filter 110ms ease;
+}
+
+button:not(:disabled):active {
+  transform: scale(0.98);
+  filter: brightness(0.88);
+}
+
+input[type="number"] {
+  appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled) {
+    transition: none;
+  }
 }

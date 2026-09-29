@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 
 import {
@@ -10,7 +10,8 @@ import {
   specFields,
 } from "@/lib/inventory/specs";
 
-type Props = { action: (formData: FormData) => void | Promise<void> };
+type FormState = { error: "invalid-input" | "invalid-specs" | "save-failed" | null };
+type Props = { action: (state: FormState, formData: FormData) => Promise<FormState> };
 
 const categoryLabels: Record<ComponentCategory, string> = {
   CPU: "Processador (CPU)",
@@ -24,11 +25,17 @@ const categoryLabels: Record<ComponentCategory, string> = {
 };
 
 export function ComponentForm({ action }: Props) {
+  const [formState, formAction, isPending] = useActionState(action, { error: null });
   const [category, setCategory] = useState<ComponentCategory>("CPU");
   const [specValues, setSpecValues] = useState<Record<string, string>>({});
   const [description, setDescription] = useState("");
   const [manufacturer, setManufacturer] = useState("");
   const [model, setModel] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [lotCode, setLotCode] = useState("");
+  const [lotNotes, setLotNotes] = useState("");
+  const [showDescription, setShowDescription] = useState(false);
+  const [showLotDetails, setShowLotDetails] = useState(false);
 
   function updateSpecValue(key: string, value: string) {
     setSpecValues((current) => ({ ...current, [key]: value }));
@@ -130,7 +137,16 @@ export function ComponentForm({ action }: Props) {
   }
 
   return (
-    <form action={action} className="space-y-8">
+    <form action={formAction} className="space-y-8">
+      {formState.error ? (
+        <p role="alert" className="rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">
+          {formState.error === "invalid-input"
+            ? "Confira fabricante, modelo e quantidade. Os dados preenchidos foram mantidos."
+            : formState.error === "invalid-specs"
+              ? "Revise as especificações técnicas. Os dados preenchidos foram mantidos."
+              : "Não foi possível cadastrar a peça. Os dados preenchidos foram mantidos; tente novamente."}
+        </p>
+      ) : null}
       <section>
         <h2 className="text-lg font-semibold text-[#153b2a]">Identificação</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -178,10 +194,18 @@ export function ComponentForm({ action }: Props) {
               onChange={(event) => setModel(event.target.value)}
             />
           </div>
-          <label className="grid gap-2 text-sm font-medium text-[#294333] sm:col-span-2">
-            Observações
-            <textarea className="min-h-24 rounded-xl border border-[#d9e2d8] px-3 py-2 font-normal" name="description" maxLength={1000} value={description} onChange={(event) => setDescription(event.target.value)} />
-          </label>
+          <div className="sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-[#294333]">
+              <input type="checkbox" className="size-4 accent-[#315b3c]" checked={showDescription} onChange={(event) => setShowDescription(event.target.checked)} />
+              Adicionar observações da peça
+            </label>
+            {showDescription ? (
+              <label className="mt-3 grid gap-2 text-sm font-medium text-[#294333]">
+                Observações da peça
+                <textarea className="min-h-24 w-full rounded-xl border border-[#d9e2d8] px-3 py-2 font-normal" name="description" maxLength={1000} value={description} onChange={(event) => setDescription(event.target.value)} />
+              </label>
+            ) : null}
+          </div>
         </div>
       </section>
 
@@ -204,30 +228,36 @@ export function ComponentForm({ action }: Props) {
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold text-[#153b2a]">Lote inicial</h2>
-        <p className="mt-1 text-sm leading-6 text-[#718276]">A quantidade cadastrada entra no estoque por um lote identificável.</p>
+        <h2 className="text-lg font-semibold text-[#153b2a]">Quantidade inicial</h2>
+        <p className="mt-1 text-sm leading-6 text-[#718276]">Informe quantas unidades existem. O código de lote é opcional.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="grid gap-2 text-sm font-medium text-[#294333]">
             Quantidade
-            <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="quantity" type="number" min="0" max="100000" defaultValue="0" required />
+            <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="quantity" type="number" min="0" max="100000" value={quantity} onChange={(event) => setQuantity(event.target.value)} required />
           </label>
-          <label className="grid gap-2 text-sm font-medium text-[#294333]">
-            Código do lote
-            <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="lotCode" maxLength={80} placeholder="Necessário se informar quantidade" />
-          </label>
-          <label className="grid gap-2 text-sm font-medium text-[#294333]">
-            Data da compra
-            <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="purchaseDate" type="date" />
-          </label>
-          <label className="grid gap-2 text-sm font-medium text-[#294333]">
-            Observações do lote
-            <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="notes" maxLength={500} />
-          </label>
+          <div className="sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-[#294333]">
+              <input type="checkbox" className="size-4 accent-[#315b3c]" checked={showLotDetails} onChange={(event) => setShowLotDetails(event.target.checked)} />
+              Informar lote ou observações
+            </label>
+            {showLotDetails ? (
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-2 text-sm font-medium text-[#294333]">
+                  Código do lote (opcional)
+                  <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="lotCode" maxLength={80} value={lotCode} onChange={(event) => setLotCode(event.target.value)} />
+                </label>
+                <label className="grid gap-2 text-sm font-medium text-[#294333]">
+                  Observações do lote (opcional)
+                  <input className="h-12 rounded-xl border border-[#d9e2d8] px-3 font-normal" name="notes" maxLength={500} value={lotNotes} onChange={(event) => setLotNotes(event.target.value)} />
+                </label>
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
 
       <div className="flex flex-wrap gap-3 border-t border-[#e7ede4] pt-6">
-        <button className="h-12 rounded-xl bg-[#153b2a] px-6 font-semibold text-white hover:bg-[#205138]" type="submit">Cadastrar componente</button>
+        <button className="h-12 rounded-xl bg-[#153b2a] px-6 font-semibold text-white hover:bg-[#205138] disabled:opacity-60" type="submit" disabled={isPending}>{isPending ? "Salvando…" : "Cadastrar componente"}</button>
         <Link className="flex h-12 items-center rounded-xl border border-[#d9e2d8] px-5 font-medium text-[#315b3c] hover:bg-[#f5f7f2]" href="/estoque">Cancelar</Link>
       </div>
     </form>

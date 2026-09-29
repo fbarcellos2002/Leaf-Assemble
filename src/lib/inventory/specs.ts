@@ -31,6 +31,7 @@ const specSchemas = {
     tdpW: optionalPositiveNumber,
     integratedGraphics: optionalBoolean,
     memoryTypes: optionalTextList,
+    maxMemoryFrequencyMhz: optionalPositiveNumber,
   }),
   MOTHERBOARD: z.object({
     socket: optionalText,
@@ -121,6 +122,7 @@ export const specFields: Record<ComponentCategory, SpecField[]> = {
     { key: "tdpW", label: "TDP", type: "number", unit: "W" },
     { key: "integratedGraphics", label: "Gráficos integrados", type: "boolean" },
     { key: "memoryTypes", label: "Tipos de memória", type: "text-list", hint: "Separe por vírgula: DDR4, DDR5" },
+    { key: "maxMemoryFrequencyMhz", label: "Frequência máxima de memória", type: "number", unit: "MHz" },
   ],
   MOTHERBOARD: [
     { key: "socket", label: "Socket", type: "text" },
@@ -186,6 +188,7 @@ export const specFields: Record<ComponentCategory, SpecField[]> = {
 export const specChoices: Partial<Record<ComponentCategory, Record<string, readonly string[]>>> = {
   CPU: {
     memoryTypes: ["DDR3", "DDR3L", "DDR4", "DDR5", "LPDDR4", "LPDDR4X", "LPDDR5", "LPDDR5X"],
+    maxMemoryFrequencyMhz: ["800", "1066", "1333", "1600", "1866", "2133", "2400", "2666", "2933", "3000", "3200", "3600", "4000", "4266", "4800", "5200", "5600", "6000", "6400", "7200", "7600", "8000", "8400"],
   },
   MOTHERBOARD: {
     formFactor: ["ATX", "Micro-ATX", "Mini-ITX", "E-ATX", "Mini-DTX"],

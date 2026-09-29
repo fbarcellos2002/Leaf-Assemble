@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requireActiveProfile } from "@/lib/auth/profile";
 import { createClient } from "@/lib/supabase/server";
 
-import { receiveStock } from "../actions";
+import { receiveStock, removeStock } from "../actions";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -68,6 +68,7 @@ const specLabels: Record<string, string> = {
   supportedSockets: "Sockets compatíveis",
   heightMm: "Altura (mm)",
   tdpRatingW: "TDP suportado (W)",
+  maxMemoryFrequencyMhz: "Frequência máxima de memória (MHz)",
 };
 
 function formatSpec(value: unknown) {
@@ -84,12 +85,12 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
   const supabase = await createClient();
   const { data: component, error } = await supabase
     .from("components")
-    .select("id, category, manufacturer, model, description, specs, created_at, component_lots(id, lot_code, quantity_total, available_quantity, reserved_quantity, used_quantity, purchase_date, notes)")
+    .select("id, category, manufacturer, model, description, specs, created_at, component_lots(id, lot_code, quantity_total, available_quantity, reserved_quantity, used_quantity, notes)")
     .eq("id", id)
     .maybeSingle();
   if (error || !component) notFound();
 
-  const lots = [...(component.component_lots ?? [])].sort((a, b) => a.lot_code.localeCompare(b.lot_code));
+  const lots = [...(component.component_lots ?? [])].sort((a, b) => (a.lot_code ?? "").localeCompare(b.lot_code ?? ""));
   const total = lots.reduce((sum, lot) => sum + lot.quantity_total, 0);
   const available = lots.reduce((sum, lot) => sum + lot.available_quantity, 0);
   const reserved = lots.reduce((sum, lot) => sum + lot.reserved_quantity, 0);
@@ -108,9 +109,10 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
         </div>
       </div>
 
-      {query.error ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível alterar o estoque. Confira o código do lote e a quantidade.</p> : null}
+      {query.error ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível alterar o estoque. Confira a quantidade e as unidades disponíveis.</p> : null}
       {query.notice === "created" ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">Componente cadastrado.</p> : null}
       {query.notice === "stock-received" ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">Entrada de estoque registrada.</p> : null}
+      {query.notice === "stock-removed" ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">Quantidade removida do estoque.</p> : null}
 
       <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -153,16 +155,25 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[620px] text-left text-sm">
               <thead className="text-xs tracking-wide text-[#718276] uppercase">
-                <tr><th className="pb-3 pr-4">Lote</th><th className="pb-3 pr-4">Compra</th><th className="pb-3 pr-4">Total</th><th className="pb-3 pr-4">Disponível</th><th className="pb-3 pr-4">Reservado</th><th className="pb-3">Usado</th></tr>
+                <tr><th className="pb-3 pr-4">Lote</th><th className="pb-3 pr-4">Total</th><th className="pb-3 pr-4">Disponível</th><th className="pb-3 pr-4">Reservado</th><th className="pb-3 pr-4">Usado</th>{profile.role === "ADMIN" ? <th className="pb-3">Remover</th> : null}</tr>
               </thead>
               <tbody className="divide-y divide-[#edf1ea]">
                 {lots.map((lot) => <tr key={lot.id}>
-                  <td className="py-3 pr-4 font-medium text-[#294333]">{lot.lot_code}</td>
-                  <td className="py-3 pr-4 text-[#607266]">{lot.purchase_date ?? "—"}</td>
+                  <td className="py-3 pr-4 font-medium text-[#294333]">{lot.lot_code || "Sem identificação"}{lot.notes ? <p className="mt-1 max-w-56 whitespace-normal text-xs font-normal text-[#718276]">{lot.notes}</p> : null}</td>
                   <td className="py-3 pr-4 text-[#607266]">{lot.quantity_total}</td>
                   <td className="py-3 pr-4 text-[#315b3c]">{lot.available_quantity}</td>
                   <td className="py-3 pr-4 text-[#607266]">{lot.reserved_quantity}</td>
                   <td className="py-3 text-[#607266]">{lot.used_quantity}</td>
+                  {profile.role === "ADMIN" ? <td className="py-2 pl-2">
+                    {lot.available_quantity > 0 ? (
+                      <form action={removeStock} className="flex items-center gap-2">
+                        <input type="hidden" name="componentId" value={component.id} />
+                        <input type="hidden" name="lotId" value={lot.id} />
+                        <input className="h-9 w-20 rounded-lg border border-[#d9e2d8] px-2 text-sm" type="number" name="quantity" min="1" max={lot.available_quantity} required aria-label={`Quantidade a remover de ${lot.lot_code || "lote sem identificação"}`} />
+                        <button className="h-9 rounded-lg border border-[#d9d0cc] px-3 text-sm font-semibold text-[#8d493f] hover:bg-[#fff5f3]" type="submit">Remover</button>
+                      </form>
+                    ) : <span className="text-xs text-[#89958d]">—</span>}
+                  </td> : null}
                 </tr>)}
               </tbody>
             </table>
@@ -170,13 +181,16 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
         ) : <p className="mt-4 text-sm text-[#718276]">Nenhum lote registrado.</p>}
 
         {profile.role === "ADMIN" ? (
-          <form action={receiveStock} className="mt-7 grid gap-3 border-t border-[#e7ede4] pt-6 sm:grid-cols-2 lg:grid-cols-5">
+          <form action={receiveStock} className="mt-7 grid gap-3 border-t border-[#e7ede4] pt-6 sm:grid-cols-2 lg:grid-cols-4">
             <input type="hidden" name="componentId" value={component.id} />
-            <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Novo lote<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="lotCode" required maxLength={80} /></label>
             <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Quantidade recebida<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="quantity" type="number" min="1" max="100000" required /></label>
-            <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Data da compra<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="purchaseDate" type="date" /></label>
-            <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Observações<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="notes" maxLength={500} /></label>
-            <button className="mt-auto h-11 rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138]" type="submit">Registrar entrada</button>
+            <input className="peer size-4 self-end accent-[#315b3c]" id="receive-stock-details" type="checkbox" />
+            <label className="self-end pb-2 text-sm font-medium text-[#294333]" htmlFor="receive-stock-details">Informar lote ou observações</label>
+            <div className="col-span-full hidden grid-cols-1 gap-3 peer-checked:grid sm:grid-cols-2">
+              <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Código do lote (opcional)<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="lotCode" maxLength={80} /></label>
+              <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Observações (opcional)<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="notes" maxLength={500} /></label>
+            </div>
+            <button className="mt-auto h-11 rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138]" type="submit">Adicionar quantidade</button>
           </form>
         ) : null}
       </section>

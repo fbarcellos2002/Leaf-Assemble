@@ -13,6 +13,7 @@ const actionLabels: Record<string, string> = {
   "user.deleted": "Usuário removido",
   "component.created": "Componente cadastrado",
   "inventory.received": "Entrada de estoque",
+  "inventory.removed": "Estoque removido",
   "inventory.reserved": "Estoque reservado",
   "inventory.released": "Reserva liberada",
   "build.created": "Build criado",

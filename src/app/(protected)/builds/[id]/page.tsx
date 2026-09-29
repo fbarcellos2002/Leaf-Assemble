@@ -91,6 +91,8 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
     } satisfies CompatibilityPart];
   });
   const compatibility = evaluateCompatibility(selectedParts);
+  const cpuPart = selectedParts.find((part) => part.category === "CPU");
+  const gpuRequired = Boolean(cpuPart && cpuPart.specs.integratedGraphics !== true);
   const canEdit = build.status !== "COMPLETED" && build.status !== "CANCELLED";
   const completeReady = build.status === "READY";
   const requiredFilled = [
@@ -100,7 +102,9 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
     [...itemsBySlot.keys()].some((slot) => slot.startsWith("storage-")),
     itemsBySlot.has("psu"),
     itemsBySlot.has("case"),
+    !gpuRequired || [...itemsBySlot.keys()].some((slot) => slot.startsWith("gpu-")),
   ].filter(Boolean).length;
+  const requiredSlotCount = 6 + (gpuRequired ? 1 : 0);
   const statusLabel = build.status === "DRAFT" ? "Rascunho" : build.status === "INCOMPLETE" ? "Incompleto" : build.status === "READY" ? "Pronto" : build.status === "COMPLETED" ? "Concluído" : "Cancelado";
 
   return (
@@ -123,7 +127,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
         {[
           ["Slots preenchidos", activeBuildItems.length],
           ["Status geral", statusLabel],
-          ["Slots obrigatórios", `${requiredFilled}/6`],
+          ["Slots obrigatórios", `${requiredFilled}/${requiredSlotCount}`],
           ["Compatibilidade", statusLabels[compatibility.status]],
         ].map(([label, value]) => <div key={label} className="rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm"><p className="text-sm text-[#718276]">{label}</p><p className="mt-2 text-xl font-semibold text-[#153b2a]">{value}</p></div>)}
       </section>
@@ -132,7 +136,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
           <div>
             <h2 className="text-xl font-semibold text-[#153b2a]">Componentes</h2>
-            <p className="mt-1 text-sm leading-6 text-[#718276]">CPU, placa-mãe, RAM, armazenamento, fonte e gabinete são necessários para concluir o build. GPU e cooler são opcionais.</p>
+            <p className="mt-1 text-sm leading-6 text-[#718276]">CPU, placa-mãe, RAM, armazenamento, fonte e gabinete são necessários. GPU também é necessária se o processador não tiver gráficos integrados; cooler é opcional.</p>
           </div>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -157,7 +161,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
               const lots = Array.isArray(part.component_lots) ? part.component_lots : [];
               return lots.filter((lot) => lot.available_quantity > 0).map((lot) => ({
                 selection: `${part.id}~${lot.id}`,
-                label: `${part.manufacturer} ${part.model} · lote ${lot.lot_code} · ${lot.available_quantity} disponíveis`,
+                label: `${part.manufacturer} ${part.model} · lote ${lot.lot_code || "sem identificação"} · ${lot.available_quantity} disponíveis`,
               }));
             });
 
@@ -167,7 +171,10 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
                 {item && component && !Array.isArray(component) ? (
                   <div className="mt-3">
                     <p className="font-semibold text-[#294333]">{component.manufacturer} {component.model}</p>
-                    <p className="mt-1 text-xs text-[#718276]">Lote {lotById.get(item.lot_id) ?? item.lot_id.slice(0, 8)} · {item.quantity} unidade reservada</p>
+                    <p className="mt-1 text-xs text-[#718276]">Lote {lotById.get(item.lot_id) || "Sem identificação"} · {item.quantity} unidade reservada</p>
+                    {category === "CPU" && typeof asRecord(component.specs).integratedGraphics === "boolean" ? (
+                      <p className="mt-1 text-xs text-[#718276]">Gráficos integrados: {asRecord(component.specs).integratedGraphics ? "Sim" : "Não"}</p>
+                    ) : null}
                     <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses[item.compatibility_status as CompatibilityStatus] ?? statusClasses.unknown}`}>
                       {statusLabels[item.compatibility_status as CompatibilityStatus] ?? statusLabels.unknown}
                     </span>

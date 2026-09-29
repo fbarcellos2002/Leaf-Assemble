@@ -20,7 +20,7 @@ export const loadInventorySnapshot = cache(async () => {
     specs: component.specs,
     lots: (component.component_lots ?? []).map((lot) => ({
       id: lot.id,
-      lotCode: lot.lot_code,
+      lotCode: lot.lot_code ?? null,
       available: lot.available_quantity,
       total: lot.quantity_total,
       reserved: lot.reserved_quantity,

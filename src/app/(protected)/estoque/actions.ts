@@ -18,27 +18,24 @@ const componentFieldsSchema = z.object({
   model: z.string().trim().min(1).max(140),
   description: z.string().trim().max(1000).optional(),
   lotCode: z.string().trim().max(80).optional(),
-  quantity: z.coerce.number().int().min(0).max(100000),
-  purchaseDate: z.union([z.literal(""), z.iso.date()]).optional(),
+  quantity: z.preprocess((value) => value === null ? undefined : value, z.coerce.number().int().min(0).max(100000)),
   notes: z.string().trim().max(500).optional(),
 });
 
-export async function createComponent(formData: FormData) {
+export type CreateComponentState = { error: "invalid-input" | "invalid-specs" | "save-failed" | null };
+
+export async function createComponent(_state: CreateComponentState, formData: FormData): Promise<CreateComponentState> {
   await requireAdminProfile();
   const category = componentCategorySchema.safeParse(formData.get("category"));
   const fields = componentFieldsSchema.safeParse({
-    manufacturer: formData.get("manufacturer"),
-    model: formData.get("model"),
-    description: formData.get("description"),
-    lotCode: formData.get("lotCode"),
+    manufacturer: formData.get("manufacturer") ?? "",
+    model: formData.get("model") ?? "",
+    description: formData.get("description") ?? "",
+    lotCode: formData.get("lotCode") ?? "",
     quantity: formData.get("quantity"),
-    purchaseDate: formData.get("purchaseDate"),
-    notes: formData.get("notes"),
+    notes: formData.get("notes") ?? "",
   });
-  if (!category.success || !fields.success) redirect("/estoque/novo?error=invalid-input");
-  if (fields.data.quantity > 0 && !fields.data.lotCode) {
-    redirect("/estoque/novo?error=lot-required");
-  }
+  if (!category.success || !fields.success) return { error: "invalid-input" };
 
   const rawSpecs: Record<string, unknown> = {};
   for (const field of specFields[category.data]) {
@@ -46,7 +43,7 @@ export async function createComponent(formData: FormData) {
     if (value !== undefined) rawSpecs[field.key] = value;
   }
   const specs = parseComponentSpecs(category.data, rawSpecs);
-  if (!specs.success) redirect("/estoque/novo?error=invalid-specs");
+  if (!specs.success) return { error: "invalid-specs" };
 
   const supabase = await createClient();
   const { data: componentId, error } = await supabase.rpc("admin_create_component", {
@@ -55,22 +52,21 @@ export async function createComponent(formData: FormData) {
     p_model: fields.data.model,
     p_description: fields.data.description ?? "",
     p_specs: specs.data,
-    p_lot_code: fields.data.lotCode ?? "",
+    p_lot_code: fields.data.lotCode || null,
     p_quantity: fields.data.quantity,
-    p_purchase_date: fields.data.purchaseDate || null,
+    p_purchase_date: null,
     p_notes: fields.data.notes ?? "",
   });
 
-  if (error || !componentId) redirect("/estoque/novo?error=save-failed");
+  if (error || !componentId) return { error: "save-failed" };
   revalidatePath("/estoque");
   redirect(`/estoque/${componentId}?notice=created`);
 }
 
 const receiveStockSchema = z.object({
   componentId: z.uuid(),
-  lotCode: z.string().trim().min(1).max(80),
-  quantity: z.coerce.number().int().positive().max(100000),
-  purchaseDate: z.union([z.literal(""), z.iso.date()]).optional(),
+  lotCode: z.string().trim().max(80).optional(),
+  quantity: z.preprocess((value) => value === null ? undefined : value, z.coerce.number().int().positive().max(100000)),
   notes: z.string().trim().max(500).optional(),
 });
 
@@ -78,19 +74,18 @@ export async function receiveStock(formData: FormData) {
   await requireAdminProfile();
   const parsed = receiveStockSchema.safeParse({
     componentId: formData.get("componentId"),
-    lotCode: formData.get("lotCode"),
+    lotCode: formData.get("lotCode") ?? "",
     quantity: formData.get("quantity"),
-    purchaseDate: formData.get("purchaseDate"),
-    notes: formData.get("notes"),
+    notes: formData.get("notes") ?? "",
   });
   if (!parsed.success) redirect("/estoque?error=invalid-input");
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("admin_receive_stock", {
     p_component_id: parsed.data.componentId,
-    p_lot_code: parsed.data.lotCode,
+    p_lot_code: parsed.data.lotCode || null,
     p_quantity: parsed.data.quantity,
-    p_purchase_date: parsed.data.purchaseDate || null,
+    p_purchase_date: null,
     p_notes: parsed.data.notes ?? "",
   });
   if (error) redirect(`/estoque/${parsed.data.componentId}?error=stock-failed`);
@@ -98,4 +93,31 @@ export async function receiveStock(formData: FormData) {
   revalidatePath("/estoque");
   revalidatePath(`/estoque/${parsed.data.componentId}`);
   redirect(`/estoque/${parsed.data.componentId}?notice=stock-received`);
+}
+
+const removeStockSchema = z.object({
+  componentId: z.uuid(),
+  lotId: z.uuid(),
+  quantity: z.preprocess((value) => value === null ? undefined : value, z.coerce.number().int().positive().max(100000)),
+});
+
+export async function removeStock(formData: FormData) {
+  await requireAdminProfile();
+  const parsed = removeStockSchema.safeParse({
+    componentId: formData.get("componentId"),
+    lotId: formData.get("lotId"),
+    quantity: formData.get("quantity"),
+  });
+  if (!parsed.success) redirect("/estoque?error=invalid-input");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_remove_stock", {
+    p_lot_id: parsed.data.lotId,
+    p_quantity: parsed.data.quantity,
+  });
+  if (error) redirect(`/estoque/${parsed.data.componentId}?error=stock-failed`);
+
+  revalidatePath("/estoque");
+  revalidatePath(`/estoque/${parsed.data.componentId}`);
+  redirect(`/estoque/${parsed.data.componentId}?notice=stock-removed`);
 }
