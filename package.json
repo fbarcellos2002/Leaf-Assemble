@@ -8,8 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "icecat:import": "node --env-file-if-exists=.env.local scripts/import-icecat-index.mjs"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

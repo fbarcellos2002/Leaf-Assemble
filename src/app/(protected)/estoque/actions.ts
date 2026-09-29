@@ -45,17 +45,6 @@ export async function createComponent(formData: FormData) {
     const value = parseSpecFormValue(field, formData.get(`spec_${field.key}`));
     if (value !== undefined) rawSpecs[field.key] = value;
   }
-  const sourceDataValue = formData.get("sourceData");
-  if (typeof sourceDataValue === "string" && sourceDataValue) {
-    if (sourceDataValue.length > 150_000) redirect("/estoque/novo?error=invalid-specs");
-    try {
-      const sourceData = z.record(z.string(), z.unknown()).safeParse(JSON.parse(sourceDataValue));
-      if (!sourceData.success) redirect("/estoque/novo?error=invalid-specs");
-      rawSpecs.sourceData = sourceData.data;
-    } catch {
-      redirect("/estoque/novo?error=invalid-specs");
-    }
-  }
   const specs = parseComponentSpecs(category.data, rawSpecs);
   if (!specs.success) redirect("/estoque/novo?error=invalid-specs");
 

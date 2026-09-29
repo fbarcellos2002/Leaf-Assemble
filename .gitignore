@@ -40,3 +40,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Large product reference downloads are local-only.
+/catalogo.xml.gz
+/SuppliersList.xml.gz
+/SupplierList.xml.gz
