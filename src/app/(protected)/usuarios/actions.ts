@@ -160,8 +160,11 @@ export async function updateOwnPassword(formData: FormData) {
   redirect("/usuarios?notice=password-updated");
 }
 
-function getDeleteErrorCode(message: string) {
+function getDeleteErrorCode(message: string, code?: string) {
   const normalized = message.toLowerCase();
+  if (code === "PGRST202" || normalized.includes("admin_delete_user") || normalized.includes("schema cache")) {
+    return "delete-migration";
+  }
   if (normalized.includes("própria conta")) return "delete-self";
   if (normalized.includes("protegido")) return "delete-protected";
   if (normalized.includes("ao menos um administrador ativo")) return "delete-last-admin";
@@ -179,7 +182,10 @@ export async function deleteUser(formData: FormData) {
     p_auth_user_id: parsed.data,
   });
 
-  if (error) redirect(`/usuarios?error=${getDeleteErrorCode(error.message)}`);
+  if (error) {
+    console.error("Supabase user deletion failed", { code: error.code, message: error.message });
+    redirect(`/usuarios?error=${getDeleteErrorCode(error.message, error.code)}`);
+  }
   revalidatePath("/usuarios");
   revalidatePath("/auditoria");
   redirect("/usuarios?notice=deleted");

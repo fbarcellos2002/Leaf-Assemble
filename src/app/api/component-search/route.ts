@@ -9,6 +9,10 @@ function escapeLike(value: string) {
   return value.replace(/[\\%_]/g, "\\$&");
 }
 
+function normalize(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireAdminProfile();
@@ -34,17 +38,41 @@ export async function POST(request: NextRequest) {
 
   try {
     const supabase = createAdminClient();
-    const { data, error } = await supabase
+    const tokens = [...new Set(normalize(term).split(/\s+/).filter((token) => token.length >= 2))];
+    const searchableTokens = tokens.filter((token) => token.length >= 3);
+    if (searchableTokens.length === 0) {
+      return NextResponse.json({ results: [], needsMoreInput: true }, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    let query = supabase
       .from("icecat_catalog")
       .select("icecat_id, supplier_name, product_code, model_name, category_id, image_url")
-      .ilike("search_text", `%${escapeLike(term)}%`)
       .order("model_name")
-      .limit(12);
+      .limit(100);
+    for (const token of searchableTokens) query = query.ilike("search_text", `%${escapeLike(token)}%`);
+    const { data, error } = await query;
 
     if (error) return NextResponse.json({ error: "catalog-unavailable" }, { status: 503 });
 
+    const normalizedQuery = normalize(term);
+    const rank = (item: { supplier_name: string; product_code: string; model_name: string }) => {
+      const brand = normalize(item.supplier_name);
+      const model = normalize(item.model_name);
+      const code = normalize(item.product_code);
+      return (model.startsWith(normalizedQuery) ? 12 : model.includes(normalizedQuery) ? 8 : 0)
+        + (code.startsWith(normalizedQuery) ? 10 : code.includes(normalizedQuery) ? 7 : 0)
+        + tokens.reduce((score, token) => score + (model.includes(token) ? 3 : 0) + (code.includes(token) ? 3 : 0) + (brand.includes(token) ? 1 : 0), 0);
+    };
+    const results = (data ?? [])
+      .filter((item) => {
+        const searchableText = [item.supplier_name, item.model_name, item.product_code].map(normalize);
+        return tokens.every((token) => searchableText.some((value) => value.includes(token)));
+      })
+      .sort((left, right) => rank(right) - rank(left) || left.model_name.localeCompare(right.model_name))
+      .slice(0, 12);
+
     return NextResponse.json({
-      results: (data ?? []).map((item) => ({
+      results: results.map((item) => ({
         icecatId: String(item.icecat_id),
         supplierName: item.supplier_name,
         productCode: item.product_code,

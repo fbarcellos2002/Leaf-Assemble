@@ -21,6 +21,7 @@ const errorMessages: Record<string, string> = {
   "delete-protected": "O administrador principal protegido não pode ser removido.",
   "delete-last-admin": "O sistema precisa manter ao menos um administrador ativo.",
   "delete-not-found": "Essa conta já foi removida ou não existe mais.",
+  "delete-migration": "A função de remoção ainda não está instalada no Supabase. Aplique a migration 20260927010000_admin_user_removal.sql.",
   "delete-failed": "Não foi possível remover a conta.",
   "password-invalid": "As senhas devem ser iguais e conter no mínimo 8 caracteres, uma letra maiúscula, um número e um caractere especial.",
   "password-update-failed": "Não foi possível alterar a senha. Tente novamente.",
