@@ -48,14 +48,14 @@ export default async function ProtectedLayout({
                 {item.label}
               </Link>
             ))}
+            <Link
+              href="/usuarios"
+              className="rounded-lg px-2.5 py-2 text-sm font-medium text-[#53675a] transition hover:bg-[#eff4eb] hover:text-[#153b2a] sm:px-3"
+            >
+              Usuários
+            </Link>
             {profile.role === "ADMIN" ? (
               <>
-                <Link
-                  href="/usuarios"
-                  className="rounded-lg px-2.5 py-2 text-sm font-medium text-[#53675a] transition hover:bg-[#eff4eb] hover:text-[#153b2a] sm:px-3"
-                >
-                  Usuários
-                </Link>
                 <Link
                   href="/auditoria"
                   className="rounded-lg px-2.5 py-2 text-sm font-medium text-[#53675a] transition hover:bg-[#eff4eb] hover:text-[#153b2a] sm:px-3"

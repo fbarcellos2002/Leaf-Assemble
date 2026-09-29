@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { requireAdminProfile } from "@/lib/auth/profile";
+import { requireActiveProfile, requireAdminProfile } from "@/lib/auth/profile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -26,6 +26,10 @@ const updateUserSchema = z.object({
   role: roleSchema,
   isActive: z.enum(["true", "false"]).transform((value) => value === "true"),
 });
+const ownPasswordSchema = z.object({
+  password: z.string().min(8).max(128).regex(/[A-Z]/).regex(/[0-9]/).regex(/[^A-Za-z0-9]/),
+  confirmation: z.string(),
+}).refine((data) => data.password === data.confirmation, { path: ["confirmation"] });
 
 function getCreateErrorCode(error: { message?: string; code?: string; status?: number }) {
   const normalized = `${error.code ?? ""} ${error.message ?? ""}`.toLowerCase();
@@ -135,6 +139,25 @@ export async function updateUser(formData: FormData) {
   revalidatePath("/usuarios");
   revalidatePath("/dashboard");
   redirect("/usuarios?notice=updated");
+}
+
+export async function updateOwnPassword(formData: FormData) {
+  await requireActiveProfile();
+  const parsed = ownPasswordSchema.safeParse({
+    password: formData.get("password"),
+    confirmation: formData.get("confirmation"),
+  });
+  if (!parsed.success) redirect("/usuarios?error=password-invalid");
+
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  if (!claims?.claims?.sub) redirect("/login");
+
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) redirect("/usuarios?error=password-update-failed");
+
+  revalidatePath("/usuarios");
+  redirect("/usuarios?notice=password-updated");
 }
 
 function getDeleteErrorCode(message: string) {
