@@ -31,6 +31,8 @@ export function ComponentForm({ action }: Props) {
   const [category, setCategory] = useState<ComponentCategory>("CPU");
   const [specValues, setSpecValues] = useState<Record<string, string>>({});
   const [manufacturer, setManufacturer] = useState("");
+  const [socketPlatform, setSocketPlatform] = useState<"Intel" | "AMD" | "">("");
+  const [socketModel, setSocketModel] = useState("");
   const [name, setName] = useState("");
   const [caseModel, setCaseModel] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -40,6 +42,12 @@ export function ComponentForm({ action }: Props) {
 
   function updateSpecValue(key: string, value: string) {
     setSpecValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateMotherboardSocket(platform: "Intel" | "AMD" | "", model: string) {
+    const prefix = platform === "Intel" ? "LGA" : platform === "AMD" ? "AM" : "";
+    const socket = prefix && model.trim() ? `${prefix} ${model.trim()}` : "";
+    updateSpecValue("socket", socket);
   }
 
   const previewSpecs: Record<string, unknown> = {};
@@ -58,6 +66,7 @@ export function ComponentForm({ action }: Props) {
   function renderSpecField(field: (typeof specFields)[ComponentCategory][number]) {
     const value = specValues[field.key] ?? "";
     const options = specChoices[category]?.[field.key];
+    const listField = field.type === "text-list" || field.type === "number-list";
     const placeholder = category === "CPU" && field.key === "socket"
       ? manufacturer === "Intel" ? "Ex.: LGA 1155" : manufacturer === "AMD" ? "Ex.: AM4" : field.hint
       : field.hint;
@@ -71,7 +80,69 @@ export function ComponentForm({ action }: Props) {
       );
     }
 
-    const listField = field.type === "text-list" || field.type === "number-list";
+    if (category === "MOTHERBOARD" && field.key === "socket") {
+      const prefix = socketPlatform === "Intel" ? "LGA" : socketPlatform === "AMD" ? "AM" : "";
+      return (
+        <div className="grid grid-cols-1 gap-2">
+          <select
+            className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal"
+            aria-label="Plataforma do socket"
+            value={socketPlatform}
+            onChange={(event) => {
+              const nextPlatform = event.target.value as "Intel" | "AMD" | "";
+              setSocketPlatform(nextPlatform);
+              updateMotherboardSocket(nextPlatform, socketModel);
+            }}
+          >
+            <option value="">Selecione Intel ou AMD</option>
+            <option value="Intel">Intel (LGA)</option>
+            <option value="AMD">AMD (AM)</option>
+          </select>
+          <label className="grid gap-2 text-sm font-normal text-[#718276]">
+            Modelo do socket{prefix ? ` (${prefix})` : ""}
+            <input
+              className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal text-[#294333]"
+              aria-label="Modelo do socket"
+              placeholder={prefix === "LGA" ? "Ex.: 1155" : prefix === "AM" ? "Ex.: 4 ou 5" : "Selecione Intel ou AMD primeiro"}
+              value={socketModel}
+              onChange={(event) => {
+                setSocketModel(event.target.value);
+                updateMotherboardSocket(socketPlatform, event.target.value);
+              }}
+            />
+          </label>
+          <input type="hidden" name="spec_socket" value={value} />
+        </div>
+      );
+    }
+
+    if (options?.length && listField) {
+      const selected = value.split(",").map((item) => item.trim()).filter(Boolean);
+      return (
+        <>
+          <input type="hidden" name={`spec_${field.key}`} value={selected.join(", ")} />
+          <div role="group" aria-label={field.label} className="grid grid-cols-1 gap-2 rounded-xl border border-[#d9e2d8] p-3">
+            {options.map((option) => (
+              <label key={option} className="flex items-center gap-2 text-sm font-normal text-[#44594b]">
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-[#315b3c]"
+                  checked={selected.includes(option)}
+                  onChange={(event) => {
+                    const next = event.target.checked
+                      ? [...selected, option]
+                      : selected.filter((item) => item !== option);
+                    updateSpecValue(field.key, next.join(", "));
+                  }}
+                />
+                <span>{option}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      );
+    }
+
     const datalistId = `options-${category}-${field.key}`;
     return (
       <>
@@ -117,6 +188,8 @@ export function ComponentForm({ action }: Props) {
                 setCategory(event.target.value as ComponentCategory);
                 setSpecValues({});
                 setManufacturer("");
+                setSocketPlatform("");
+                setSocketModel("");
               }}
               value={category}
             >

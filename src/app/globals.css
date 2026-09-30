@@ -75,29 +75,39 @@ input[type="number"]::-webkit-outer-spin-button {
   background-color: var(--surface) !important;
 }
 
-[data-theme="dark"] aside.bg-white {
-  background-color: #153b2a !important;
-  border-color: #31583f !important;
+[data-theme="dark"] .app-sidebar {
+  background-color: #10291b !important;
+  border-color: #294b34 !important;
 }
 
-[data-theme="dark"] aside nav a[aria-current="page"] {
+[data-theme="dark"] .app-sidebar nav a[aria-current="page"] {
   background-color: #315b3c !important;
   color: #f0f7ed !important;
 }
 
-[data-theme="dark"] aside nav a:not([aria-current="page"]):hover,
-[data-theme="dark"] aside button:hover {
+[data-theme="dark"] .app-sidebar nav a:not([aria-current="page"]):hover,
+[data-theme="dark"] .app-sidebar button:hover {
   background-color: #214a33 !important;
 }
 
-[data-theme="dark"] aside [class~="bg-[#f5f7f2]"] {
-  background-color: #214a33 !important;
+[data-theme="dark"] .app-sidebar [class~="bg-[#315b3c]"] {
+  background-color: #315b3c !important;
 }
 
-[data-theme="dark"] .lg\:hidden.bg-white,
-[data-theme="dark"] div.bg-white.lg\:hidden {
-  background-color: #153b2a !important;
-  border-color: #31583f !important;
+[data-theme="dark"] .app-mobile-toolbar {
+  background-color: #10291b !important;
+  border-color: #294b34 !important;
+}
+
+[data-theme="dark"] .app-sidebar-latency,
+[data-theme="dark"] .app-sidebar-control {
+  background-color: transparent !important;
+  border-color: #46614b !important;
+}
+
+[data-theme="dark"] .app-sidebar-latency:hover,
+[data-theme="dark"] .app-sidebar-control:hover {
+  background-color: #214a33 !important;
 }
 
 [data-theme="dark"] [class~="bg-[#eff4eb]"],

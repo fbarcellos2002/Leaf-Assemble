@@ -13,7 +13,6 @@ export const componentCategories = [
 
 export const manufacturerChoices: Partial<Record<ComponentCategory, readonly string[]>> = {
   CPU: ["Intel", "AMD"],
-  MOTHERBOARD: ["ASUS", "ASRock", "Biostar", "Colorful", "EVGA", "Gigabyte", "Intel", "MSI"],
 };
 
 export const componentCategorySchema = z.enum(componentCategories);

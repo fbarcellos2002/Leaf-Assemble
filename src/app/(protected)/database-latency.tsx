@@ -52,15 +52,15 @@ export function DatabaseLatency({ authUserId, compact = false }: Props) {
       ? `Banco: ${ping.latencyMs} ms`
       : "Banco indisponível";
   const color = ping.status === "ok"
-    ? "text-[#315b3c]"
+    ? "text-[#a5d47f]"
     : ping.status === "error"
-      ? "text-[#8d3c32]"
-      : "text-[#718276]";
+      ? "text-[#ffc4b8]"
+      : "text-[#d4e5d0]";
 
   return (
     <button
       aria-label={`${label}. Clique para medir novamente.`}
-      className={`inline-flex h-9 items-center gap-2 rounded-lg border border-[#d9e2d8] bg-white px-2.5 text-xs font-medium transition hover:bg-[#f5f7f2] disabled:cursor-wait disabled:opacity-70 sm:px-3 ${color} ${compact ? "lg:size-10 lg:justify-center lg:px-0" : ""}`}
+      className={`app-sidebar-latency inline-flex h-9 items-center gap-2 rounded-lg border border-[#52715b] bg-transparent px-2.5 text-xs font-medium transition hover:bg-[#214a33] disabled:cursor-wait disabled:opacity-70 sm:px-3 ${color} ${compact ? "lg:size-10 lg:justify-center lg:px-0" : ""}`}
       disabled={ping.status === "checking"}
       onClick={() => void measureLatency()}
       title="Tempo de ida e volta de uma consulta autenticada ao Supabase, medido no navegador. Atualiza a cada 30 segundos."
