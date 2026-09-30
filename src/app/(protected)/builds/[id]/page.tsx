@@ -3,13 +3,13 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import { evaluateCompatibility, storageInterfaceSupported, type CompatibilityPart, type CompatibilityStatus } from "@/lib/compatibility/engine";
-import { componentCategorySchema } from "@/lib/inventory/specs";
+import { componentCategorySchema, type ComponentCategory } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
 import { BuildAssembly, type AssemblyOption, type InstalledPart } from "./build-assembly";
-import { cancelBuild, completeBuild, updateBuild } from "../actions";
+import { cancelBuild, completeBuild, saveBuildDraft, updateBuild } from "../actions";
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string; missing?: string }> };
 
 const categories = [
   { slot: "motherboard", category: "MOTHERBOARD", label: "Placa-mãe" },
@@ -45,6 +45,8 @@ const errorMessages: Record<string, string> = {
   "cancel-failed": "Não foi possível cancelar o build.",
   "complete-failed": "O build ainda está incompleto, incompatível ou sem confirmação.",
   "missing-prerequisite": "Escolha primeiro uma placa-mãe compatível e, para RAM ou cooler, um processador compatível.",
+  "missing-components": "Não foi possível concluir. Confira as categorias obrigatórias que ainda faltam.",
+  "draft-save-failed": "Não foi possível salvar o rascunho.",
   "update-failed": "Não foi possível salvar o nome e as observações do computador.",
 };
 
@@ -97,7 +99,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
   const cpuPart = selectedParts.find((part) => part.category === "CPU");
   const motherboardPart = selectedParts.find((part) => part.category === "MOTHERBOARD");
   const platformReady = Boolean(cpuPart && motherboardPart)
-    && evaluateCompatibility([cpuPart!, motherboardPart!]).status === "compatible";
+    && evaluateCompatibility([cpuPart!, motherboardPart!]).status !== "incompatible";
   const boardStorageInterfaces = motherboardPart?.specs.storageInterfaces;
   const motherboardHasM2 = Array.isArray(boardStorageInterfaces)
     && boardStorageInterfaces.some((item) => typeof item === "string" && item.toLocaleLowerCase("pt-BR").includes("m.2"));
@@ -116,18 +118,24 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
   }
   const gpuRequired = Boolean(cpuPart && cpuPart.specs.integratedGraphics !== true);
   const canEdit = build.status !== "COMPLETED" && build.status !== "CANCELLED";
-  const completeReady = build.status === "READY";
-  const requiredFilled = [
-    itemsBySlot.has("cpu"),
-    itemsBySlot.has("motherboard"),
-    [...itemsBySlot.keys()].some((slot) => slot.startsWith("ram-")),
-    [...itemsBySlot.keys()].some((slot) => slot.startsWith("storage-")),
-    itemsBySlot.has("psu"),
-    itemsBySlot.has("case"),
-    !gpuRequired || [...itemsBySlot.keys()].some((slot) => slot.startsWith("gpu-")),
-  ].filter(Boolean).length;
-  const requiredSlotCount = 6 + (gpuRequired ? 1 : 0);
-  const statusLabel = build.status === "DRAFT" ? "Rascunho" : build.status === "INCOMPLETE" ? "Incompleto" : build.status === "READY" ? "Pronto" : build.status === "COMPLETED" ? "Concluído" : "Cancelado";
+  const requiredCategoryLabels: Array<[ComponentCategory, string]> = [
+    ["MOTHERBOARD", "placa-mãe"],
+    ["CPU", "processador"],
+    ["CPU_COOLER", "cooler do processador"],
+    ["RAM", "memória RAM"],
+    ["STORAGE", "armazenamento"],
+    ["PSU", "fonte de alimentação"],
+    ["CASE", "gabinete"],
+    ...(gpuRequired ? [["GPU", "placa de vídeo"] as [ComponentCategory, string]] : []),
+  ];
+  const presentCategories = new Set(selectedParts.map((part) => part.category));
+  const missingRequiredLabels = requiredCategoryLabels
+    .filter(([category]) => !presentCategories.has(category))
+    .map(([, label]) => label);
+  const requiredSlotCount = requiredCategoryLabels.length;
+  const requiredFilled = requiredSlotCount - missingRequiredLabels.length;
+  const completeReady = build.status === "READY" && missingRequiredLabels.length === 0;
+  const statusLabel = build.status === "DRAFT" ? "Rascunho" : build.status === "INCOMPLETE" || (build.status === "READY" && missingRequiredLabels.length > 0) ? "Incompleto" : build.status === "READY" ? "Pronto" : build.status === "COMPLETED" ? "Concluído" : "Cancelado";
   const optionsBySlot: Record<string, AssemblyOption[]> = Object.fromEntries(buildSlots.map(({ slot, category }) => [
     slot,
     (inventory ?? []).filter((part) => part.category === category).flatMap((part) => {
@@ -150,7 +158,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
         specs,
       } satisfies CompatibilityPart;
       if (slot === "cpu" && motherboardPart
-        && evaluateCompatibility([candidate, motherboardPart]).status !== "compatible") return [];
+        && evaluateCompatibility([candidate, motherboardPart]).status === "incompatible") return [];
       if (evaluateCompatibility([...selectedParts, candidate]).status === "incompatible") return [];
       const lots = Array.isArray(part.component_lots) ? part.component_lots : [];
       return lots.filter((lot) => lot.available_quantity > 0).map((lot) => ({
@@ -189,8 +197,8 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
         <span className="w-fit rounded-full bg-[#eaf1e4] px-3.5 py-2 text-sm font-semibold text-[#315b3c]">{statusLabel}</span>
       </div>
 
-      {query.error ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">{errorMessages[query.error] ?? "Não foi possível atualizar o build."}</p> : null}
-      {query.notice ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">{query.notice === "reserved" ? "Peça reservada no estoque." : query.notice === "released" ? "Reserva liberada." : query.notice === "cancelled" ? "Build cancelado e reservas liberadas." : query.notice === "completed" ? "Build concluído; peças marcadas como usadas." : query.notice === "updated" ? "Cadastro do computador atualizado." : "Atualizado."}</p> : null}
+      {query.error ? <div role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm leading-6 text-[#8d3c32]"><p>{errorMessages[query.error] ?? "Não foi possível atualizar o build."}</p>{query.error === "missing-components" && query.missing ? <p className="mt-1"><strong>Faltam:</strong> {query.missing}.</p> : null}</div> : null}
+      {query.notice ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">{query.notice === "reserved" ? "Peça reservada no estoque." : query.notice === "released" ? "Reserva liberada." : query.notice === "cancelled" ? "Build cancelado e reservas liberadas." : query.notice === "completed" ? "Build concluído; peças marcadas como usadas." : query.notice === "updated" ? "Cadastro do computador atualizado." : query.notice === "draft-saved" ? "Rascunho salvo. As peças reservadas continuam vinculadas a este computador." : "Atualizado."}</p> : null}
       {itemsError ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível carregar os componentes do build.</p> : null}
 
       <details className="mt-6 rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm">
@@ -211,14 +219,16 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
 
       <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Slots preenchidos", activeBuildItems.length],
+          ["Peças instaladas", activeBuildItems.length],
           ["Status geral", statusLabel],
-          ["Slots obrigatórios", `${requiredFilled}/${requiredSlotCount}`],
+          ["Categorias obrigatórias", `${requiredFilled}/${requiredSlotCount}`],
           ["Compatibilidade", statusLabels[compatibility.status]],
         ].map(([label, value]) => <div key={label} className="rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm"><p className="text-sm text-[#718276]">{label}</p><p className="mt-2 text-xl font-semibold text-[#153b2a]">{value}</p></div>)}
       </section>
 
       <BuildAssembly buildId={id} slots={buildSlots} optionsBySlot={optionsBySlot} installedBySlot={installedBySlot} canEdit={canEdit} motherboardHasM2={motherboardHasM2} />
+
+      {missingRequiredLabels.length ? <p role="status" className="mt-5 rounded-xl border border-[#e7dfc4] bg-[#fffdf5] px-4 py-3 text-sm leading-6 text-[#6d613a]"><strong>Para concluir, ainda faltam:</strong> {missingRequiredLabels.join(", ")}.</p> : null}
 
       <section className="mt-7 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-semibold text-[#153b2a]">Verificação de compatibilidade</h2>
@@ -234,9 +244,15 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
           {completeReady ? <form action={completeBuild}><input type="hidden" name="buildId" value={id} /><button className="h-11 rounded-xl bg-[#153b2a] px-5 font-semibold text-white hover:bg-[#205138]" type="submit">Concluir build</button></form> : (
             <div className="flex items-center gap-3 rounded-xl bg-[#f2f8ee] px-4 py-3 text-sm text-[#315b3c]">
               <span className="rounded-full bg-[#dcebd4] px-3 py-1 font-semibold">{build.status === "DRAFT" ? "Rascunho" : "Montagem incompleta"}</span>
-              <span>{requiredFilled}/{requiredSlotCount} requisitos preenchidos. A montagem continua salva enquanto você escolhe as peças.</span>
+              <span>{requiredFilled}/{requiredSlotCount} categorias obrigatórias preenchidas. A montagem continua salva enquanto você escolhe as peças.</span>
             </div>
           )}
+          {!completeReady ? <form action={saveBuildDraft} className="flex flex-wrap gap-2">
+            <input type="hidden" name="buildId" value={id} />
+            <input type="hidden" name="name" value={build.name} />
+            <input type="hidden" name="notes" value={build.notes ?? ""} />
+            <button className="h-11 rounded-xl bg-[#153b2a] px-5 font-semibold text-white hover:bg-[#205138]" type="submit">Salvar rascunho</button>
+          </form> : null}
           <form action={cancelBuild}><input type="hidden" name="buildId" value={id} /><button className="h-11 shrink-0 rounded-xl border border-[#e4c8c2] px-5 font-semibold text-[#8d493f] hover:bg-[#fff5f3]" type="submit">Cancelar build</button></form>
         </div>
       ) : null}

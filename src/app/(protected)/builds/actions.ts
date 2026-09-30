@@ -59,6 +59,27 @@ export async function updateBuild(formData: FormData) {
   redirect(`/builds/${parsed.data.buildId}?notice=updated`);
 }
 
+export async function saveBuildDraft(formData: FormData) {
+  await requireActiveProfile();
+  const parsed = updateBuildSchema.safeParse({
+    buildId: formData.get("buildId"),
+    name: formData.get("name"),
+    notes: formData.get("notes") ?? "",
+  });
+  if (!parsed.success) redirect("/builds?error=invalid-input");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_build", {
+    p_build_id: parsed.data.buildId,
+    p_name: parsed.data.name,
+    p_notes: parsed.data.notes,
+  });
+  if (error) redirect(`/builds/${parsed.data.buildId}?error=draft-save-failed`);
+  revalidatePath("/builds");
+  revalidatePath(`/builds/${parsed.data.buildId}`);
+  redirect(`/builds/${parsed.data.buildId}?notice=draft-saved`);
+}
+
 const removeBuildSchema = z.object({
   buildId: z.uuid(),
   reason: z.string().trim().min(3).max(500),
@@ -165,11 +186,11 @@ export async function addBuildComponent(formData: FormData) {
     redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);
   }
   if (candidatePart.category === "CPU" && selectedBoard
-    && evaluateCompatibility([candidatePart, selectedBoard]).status !== "compatible") {
-    redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);
+    && evaluateCompatibility([candidatePart, selectedBoard]).status === "incompatible") {
+    redirect(`/builds/${parsed.data.buildId}?error=incompatible`);
   }
   if ((candidatePart.category === "RAM" || candidatePart.category === "CPU_COOLER") && selectedCpu && selectedBoard
-    && evaluateCompatibility([selectedCpu, selectedBoard]).status !== "compatible") {
+    && evaluateCompatibility([selectedCpu, selectedBoard]).status === "incompatible") {
     redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);
   }
   if (parsed.data.slotKey === "storage-4") {
@@ -238,6 +259,32 @@ export async function completeBuild(formData: FormData) {
   await requireActiveProfile();
   const buildId = z.uuid().parse(formData.get("buildId"));
   const supabase = await createClient();
+  const { data: selected } = await supabase
+    .from("build_components")
+    .select("components(category, specs)")
+    .eq("build_id", buildId)
+    .eq("is_active", true);
+  const selectedParts = (selected ?? []).flatMap((item) => {
+    const component = item.components as unknown as { category: string; specs: unknown } | null;
+    return component && !Array.isArray(component) ? [component] : [];
+  });
+  const categories = new Set(selectedParts.map((part) => part.category));
+  const cpu = selectedParts.find((part) => part.category === "CPU");
+  const cpuSpecs = asRecord(cpu?.specs);
+  const requiredLabels: Array<[string, string]> = [
+    ["MOTHERBOARD", "placa-mãe"],
+    ["CPU", "processador"],
+    ["CPU_COOLER", "cooler do processador"],
+    ["RAM", "memória RAM"],
+    ["STORAGE", "armazenamento"],
+    ["PSU", "fonte de alimentação"],
+    ["CASE", "gabinete"],
+  ];
+  if (cpu && cpuSpecs.integratedGraphics !== true) requiredLabels.push(["GPU", "placa de vídeo"]);
+  const missing = requiredLabels.filter(([category]) => !categories.has(category)).map(([, label]) => label);
+  if (missing.length) {
+    redirect(`/builds/${buildId}?error=missing-components&missing=${encodeURIComponent(missing.join(", "))}`);
+  }
   const { error } = await supabase.rpc("complete_build", { p_build_id: buildId });
   if (error) redirect(`/builds/${buildId}?error=complete-failed`);
   revalidatePath("/estoque");

@@ -44,6 +44,7 @@ const requiredCategories: ComponentCategory[] = [
   "STORAGE",
   "PSU",
   "CASE",
+  "CPU_COOLER",
 ];
 const MAX_BUILDS = 500;
 const MAX_BUNDLE_CANDIDATES = 8_000;
@@ -97,24 +98,27 @@ function enumerateBundles(optionsByCategory: Map<ComponentCategory, StockOption[
           if (thirdChecks.status === "incompatible") continue;
           for (const psu of optionsByCategory.get("PSU") ?? []) {
             for (const pcCase of optionsByCategory.get("CASE") ?? []) {
-              for (const gpu of gpuOptions) {
-                visited += 1;
-                if (visited > MAX_BUNDLE_CANDIDATES) {
-                  candidateLimitReached = true;
-                  break;
+              for (const cooler of optionsByCategory.get("CPU_COOLER") ?? []) {
+                for (const gpu of gpuOptions) {
+                  visited += 1;
+                  if (visited > MAX_BUNDLE_CANDIDATES) {
+                    candidateLimitReached = true;
+                    break;
+                  }
+                  const parts = [cpu, motherboard, ram, storage, psu, pcCase, cooler, ...(gpu ? [gpu] : [])];
+                  const compatibility = evaluateCompatibility(parts);
+                  if (compatibility.status === "incompatible") continue;
+                  if (compatibility.status === "unknown") {
+                    uncertainCombinations += 1;
+                    continue;
+                  }
+                  bundles.push({
+                    parts,
+                    resources: parts.map((part) => part.resourceKey),
+                    status: compatibility.status,
+                  });
                 }
-                const parts = [cpu, motherboard, ram, storage, psu, pcCase, ...(gpu ? [gpu] : [])];
-                const compatibility = evaluateCompatibility(parts);
-                if (compatibility.status === "incompatible") continue;
-                if (compatibility.status === "unknown") {
-                  uncertainCombinations += 1;
-                  continue;
-                }
-                bundles.push({
-                  parts,
-                  resources: parts.map((part) => part.resourceKey),
-                  status: compatibility.status,
-                });
+                if (candidateLimitReached) break;
               }
               if (candidateLimitReached) break;
             }
@@ -285,7 +289,9 @@ export function calculateBuildCapacity(inventory: InventoryPool[]): CapacityResu
   for (const part of inventory) partsByCategory.get(part.category)?.push(part);
 
   const stockTotals = new Map<ComponentCategory, number>();
-  for (const category of requiredCategories) {
+  const discreteGraphicsInCatalog = (partsByCategory.get("CPU") ?? []).some((cpu) => cpu.specs.integratedGraphics !== true);
+  const bottleneckCategories = [...requiredCategories, ...(discreteGraphicsInCatalog ? ["GPU" as const] : [])];
+  for (const category of bottleneckCategories) {
     stockTotals.set(category, (partsByCategory.get(category) ?? []).reduce(
       (sum, part) => sum + part.lots.reduce((lotSum, lot) => lotSum + Math.max(0, lot.available), 0),
       0,
@@ -367,16 +373,18 @@ export function calculateBuildCapacity(inventory: InventoryPool[]): CapacityResu
   for (const bundle of currentPlan.plan) {
     for (const part of bundle.parts) usedByCategory.set(part.category, (usedByCategory.get(part.category) ?? 0) + 1);
   }
-  const bottleneck = currentPlan.plan.length
-    ? requiredCategories
-      .map((category) => ({
-        category,
-        slack: (stockTotals.get(category) ?? 0) - (usedByCategory.get(category) ?? 0),
-      }))
-      .sort((a, b) => a.slack - b.slack)[0]?.category ?? null
-    : requiredCategories
-      .map((category) => ({ category, total: stockTotals.get(category) ?? 0 }))
-      .sort((a, b) => a.total - b.total)[0]?.category ?? null;
+  const remainingByCategory = bottleneckCategories
+    .map((category) => ({
+      category,
+      quantity: Math.max(0, (stockTotals.get(category) ?? 0) - (usedByCategory.get(category) ?? 0)),
+    }))
+    .sort((a, b) => a.quantity - b.quantity);
+  const medianRemaining = remainingByCategory[Math.floor(remainingByCategory.length / 2)]?.quantity ?? 0;
+  const lowestRemaining = remainingByCategory[0]?.quantity ?? 0;
+  // A modest one-unit difference is not enough; call it a bottleneck only below 70% of the median.
+  const bottleneck = medianRemaining > 0 && lowestRemaining < medianRemaining && lowestRemaining / medianRemaining <= 0.7
+    ? remainingByCategory[0].category
+    : null;
 
   return {
     compatibleBuilds: compatiblePlan.plan.length,
@@ -386,7 +394,7 @@ export function calculateBuildCapacity(inventory: InventoryPool[]): CapacityResu
     purchasesByCategory,
     onePartAwayBuilds: nearPlan.plan.length,
     onePartAwayByCategory,
-    missingCatalogCategories: requiredCategories.filter((category) => (partsByCategory.get(category)?.length ?? 0) === 0),
+    missingCatalogCategories: bottleneckCategories.filter((category) => (partsByCategory.get(category)?.length ?? 0) === 0),
     bottleneck,
     uncertainCombinations: currentEnumeration.uncertainCombinations,
     searchExact: compatiblePlan.exact && currentPlan.exact && purchasePlan.exact && nearPlan.exact

@@ -132,7 +132,7 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
         <h2 className="text-xl font-semibold text-[#153b2a]">Montagem interativa</h2>
         <p className="mt-1 text-sm leading-6 text-[#718276]">Clique em um ponto do gabinete para escolher o componente daquele encaixe.</p>
       </div>
-      <div className="grid lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,.8fr)]">
+      <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,.8fr)]">
         <div className="min-h-[440px] border-b border-[#e7ede4] bg-[#111a15] p-3 sm:p-5 lg:border-r lg:border-b-0">
           <div className="relative mx-auto aspect-[900/640] max-w-[900px] overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_52%_48%,#26382d_0%,#141d17_62%,#0e1511_100%)]">
             <CaseIllustration slots={slots} selectedSlot={selectedSlot} motherboardHasM2={motherboardHasM2 || slots.some((slot) => slot.slot === "storage-4")} />
@@ -163,7 +163,7 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
           </div>
         </div>
 
-        <div className="p-5 sm:p-7">
+        <div className="min-w-0 overflow-hidden p-5 sm:p-7">
           {memorySlots.length ? <div className="mb-5 border-b border-[#e7ede4] pb-5">
             <h3 className="text-xs font-semibold tracking-[.14em] text-[#718276] uppercase">Memórias</h3>
             <div className="mt-3 space-y-2">
@@ -186,9 +186,9 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
             <p className="text-xs font-semibold tracking-[.14em] text-[#5da52f] uppercase">Encaixe selecionado</p>
             <h3 className="mt-2 text-xl font-semibold text-[#153b2a]">{activeSlot.label}</h3>
             {activePart ? (
-              <div className="mt-4 rounded-xl border border-[#dce6d8] bg-[#f7f9f5] p-4">
+              <div className="mt-4 min-w-0 overflow-hidden rounded-xl border border-[#dce6d8] bg-[#f7f9f5] p-4">
                 <p className="text-xs font-semibold tracking-wide text-[#718276] uppercase">Peça instalada</p>
-                <p className="mt-2 font-semibold text-[#294333]">{activePart.description}</p>
+                <p className="mt-2 min-w-0 break-words font-semibold text-[#294333] [overflow-wrap:anywhere]">{activePart.description}</p>
                 <p className="mt-1 text-xs text-[#718276]">Lote {activePart.lot || "sem identificação"} · {activePart.quantity} unidade reservada</p>
                 <span className="mt-3 inline-flex rounded-full bg-[#e8f3e2] px-2.5 py-1 text-xs font-semibold text-[#315b3c]">{statusLabels[activePart.status] ?? statusLabels.unknown}</span>
                 {canEdit ? <form action={releaseBuildComponent} className="mt-3">

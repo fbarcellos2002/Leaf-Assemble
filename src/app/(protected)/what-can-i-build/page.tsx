@@ -58,6 +58,26 @@ export default async function WhatCanIBuildPage() {
         </article>
       </section>
 
+      <section className="mt-6 rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm sm:p-6">
+        <p className="text-sm font-semibold text-[#5da52f]">Leitura do estoque</p>
+        <h2 className="mt-1 text-xl font-semibold text-[#153b2a]">Gargalo de montagem</h2>
+        {capacity.bottleneck ? (
+          <p className="mt-3 leading-7 text-[#65766a]">A categoria que mais limita novas montagens neste momento é <strong className="text-[#294333]">{categoryLabels[capacity.bottleneck]}</strong>.</p>
+        ) : (
+          <p className="mt-3 leading-7 text-[#65766a]">Até o momento, não há um gargalo significativo entre as categorias obrigatórias. As quantidades estão relativamente equilibradas.</p>
+        )}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm sm:p-6">
+        <p className="text-sm font-semibold text-[#5da52f]">Leitura do estoque</p>
+        <h2 className="mt-1 text-xl font-semibold text-[#153b2a]">Gargalo de montagem</h2>
+        {capacity.bottleneck ? (
+          <p className="mt-3 leading-7 text-[#65766a]">A categoria que mais limita novas montagens neste momento é <strong className="text-[#294333]">{categoryLabels[capacity.bottleneck]}</strong>.</p>
+        ) : (
+          <p className="mt-3 leading-7 text-[#65766a]">Até o momento, não há um gargalo significativo entre as categorias obrigatórias. As quantidades estão relativamente equilibradas.</p>
+        )}
+      </section>
+
       <section className="mt-6 rounded-3xl border border-[#dce6d8] bg-white p-5 shadow-sm sm:p-7">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>

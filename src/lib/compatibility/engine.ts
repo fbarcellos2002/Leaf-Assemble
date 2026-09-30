@@ -40,6 +40,24 @@ export function storageInterfaceSupported(storageInterface: string, supportedInt
   });
 }
 
+function normalizedSocket(value: string) {
+  return value.trim().toLocaleUpperCase("pt-BR")
+    .replace(/^SOCKET\s*/, "")
+    .replace(/^(INTEL|AMD)\s+/, "")
+    .replace(/^(?:FC)?LGA\s*/, "")
+    .replace(/[\s_-]+/g, "");
+}
+
+function compareSocket(left: CompatibilityPart, right: CompatibilityPart, label: string): CompatibilityResult {
+  const leftValue = textValue(left.specs.socket);
+  const rightValue = textValue(right.specs.socket);
+  if (!leftValue || !rightValue) return result("unknown", `Não há dados suficientes para conferir ${label}.`, [left, right]);
+  if (normalizedSocket(leftValue) !== normalizedSocket(rightValue)) {
+    return result("incompatible", `${label} incompatível.`, [left, right], `${leftValue} × ${rightValue}`);
+  }
+  return result("compatible", `${label} compatível.`, [left, right], `${leftValue} · ${rightValue}`);
+}
+
 function result(
   status: CompatibilityStatus,
   reason: string,
@@ -49,26 +67,8 @@ function result(
   return { status, reason, details, components: parts.map(partName) };
 }
 
-function compareExactText(
-  left: CompatibilityPart,
-  leftKey: string,
-  right: CompatibilityPart,
-  rightKey: string,
-  label: string,
-): CompatibilityResult {
-  const leftValue = textValue(left.specs[leftKey]);
-  const rightValue = textValue(right.specs[rightKey]);
-  if (!leftValue || !rightValue) {
-    return result("unknown", `Não há dados suficientes para conferir ${label}.`, [left, right]);
-  }
-  if (normalized(leftValue) !== normalized(rightValue)) {
-    return result("incompatible", `${label} incompatível.`, [left, right], `${leftValue} × ${rightValue}`);
-  }
-  return result("compatible", `${label} compatível.`, [left, right], leftValue);
-}
-
 function cpuMotherboard(cpu: CompatibilityPart, board: CompatibilityPart) {
-  const socketCheck = compareExactText(cpu, "socket", board, "socket", "Socket da CPU e da placa-mãe");
+  const socketCheck = compareSocket(cpu, board, "Socket da CPU e da placa-mãe");
   const cpuMemoryTypes = stringsValue(cpu.specs.memoryTypes);
   const boardMemoryType = textValue(board.specs.memoryType);
   if (!cpuMemoryTypes || !boardMemoryType) {
@@ -149,7 +149,7 @@ function coolerSocket(cooler: CompatibilityPart, target: CompatibilityPart) {
   if (!supported || !socket) {
     return result("unknown", "Socket compatível do cooler ou socket do componente não informado.", [cooler, target]);
   }
-  if (!supported.some((item) => normalized(item) === normalized(socket))) {
+  if (!supported.some((item) => normalizedSocket(item) === normalizedSocket(socket))) {
     return result("incompatible", "O cooler não informa suporte a este socket.", [cooler, target], `Cooler: ${supported.join(", ")}; socket: ${socket}`);
   }
   return result("compatible", "O cooler suporta o socket selecionado.", [cooler, target], socket);
