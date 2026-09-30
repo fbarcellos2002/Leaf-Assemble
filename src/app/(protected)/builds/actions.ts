@@ -108,8 +108,8 @@ export async function removeBuild(formData: FormData) {
 const addComponentSchema = z.object({
   buildId: z.uuid(),
   slotKey: z.string().regex(/^(cpu|motherboard|ram-[1-9][0-9]*|gpu-[1-9][0-9]*|storage-[1-9][0-9]*|psu|case|cpu_cooler)$/),
+  nextSlot: z.string().regex(/^(cpu|motherboard|ram-[1-9][0-9]*|gpu-[1-9][0-9]*|storage-[1-9][0-9]*|psu|case|cpu_cooler)$/).optional(),
   selection: z.string().regex(/^[0-9a-f-]{36}~[0-9a-f-]{36}$/i),
-  acknowledge: z.enum(["yes", "no"]).optional(),
 });
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -124,8 +124,8 @@ export async function addBuildComponent(formData: FormData) {
   const parsed = addComponentSchema.safeParse({
     buildId: formData.get("buildId"),
     slotKey: formData.get("slotKey"),
+    nextSlot: formData.get("nextSlot") || undefined,
     selection: formData.get("selection"),
-    acknowledge: formData.get("acknowledge") ?? undefined,
   });
   if (!parsed.success) redirect(requestedBuildId.success ? `/builds/${requestedBuildId.data}?error=invalid-input` : "/builds?error=invalid-input");
   const [componentId, lotId] = parsed.data.selection.split("~");
@@ -206,10 +206,6 @@ export async function addBuildComponent(formData: FormData) {
   if (compatibility.status === "incompatible") {
     redirect(`/builds/${parsed.data.buildId}?error=incompatible`);
   }
-  if ((compatibility.status === "warning" || compatibility.status === "unknown") && parsed.data.acknowledge !== "yes") {
-    redirect(`/builds/${parsed.data.buildId}?error=confirmation-required`);
-  }
-
   const { error } = await supabase.rpc("reserve_build_component", {
     p_build_id: parsed.data.buildId,
     p_component_id: componentId,
@@ -227,7 +223,8 @@ export async function addBuildComponent(formData: FormData) {
   revalidatePath("/estoque");
   revalidatePath("/builds");
   revalidatePath(`/builds/${parsed.data.buildId}`);
-  redirect(`/builds/${parsed.data.buildId}?notice=reserved`);
+  const nextSlot = parsed.data.nextSlot ? `&slot=${encodeURIComponent(parsed.data.nextSlot)}` : "";
+  redirect(`/builds/${parsed.data.buildId}?notice=reserved${nextSlot}`);
 }
 
 export async function releaseBuildComponent(formData: FormData) {

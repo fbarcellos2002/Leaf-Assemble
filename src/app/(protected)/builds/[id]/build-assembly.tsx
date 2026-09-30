@@ -21,6 +21,7 @@ type Props = {
   installedBySlot: Record<string, InstalledPart>;
   canEdit: boolean;
   motherboardHasM2: boolean;
+  initialSlot?: string;
 };
 
 const calloutPositions: Record<string, { anchorX: number; anchorY: number; labelY: number; side: "left" | "right" }> = {
@@ -109,21 +110,23 @@ function CaseIllustration({
   );
 }
 
-export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, canEdit, motherboardHasM2 }: Props) {
-  const [selectedSlot, setSelectedSlot] = useState(slots[0]?.slot ?? "cpu");
+export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, canEdit, motherboardHasM2, initialSlot }: Props) {
+  const [selectedSlot, setSelectedSlot] = useState(initialSlot && slots.some((slot) => slot.slot === initialSlot) ? initialSlot : slots[0]?.slot ?? "cpu");
   const activeSlot = slots.find((slot) => slot.slot === selectedSlot) ?? slots[0];
   const activePart = activeSlot ? installedBySlot[activeSlot.slot] : undefined;
   const options = activeSlot ? optionsBySlot[activeSlot.slot] ?? [] : [];
   const memorySlots = slots.filter((slot) => slot.slot.startsWith("ram-"));
   const [selectedOption, setSelectedOption] = useState("");
-  const [selectionConfirmed, setSelectionConfirmed] = useState(false);
-  const [acknowledged, setAcknowledged] = useState(false);
-  const selectedOptionLabel = options.find((option) => option.selection === selectedOption)?.label;
+  const nextSlot = activeSlot
+    ? (() => {
+        const activeIndex = slots.findIndex((slot) => slot.slot === activeSlot.slot);
+        const upcoming = [...slots.slice(activeIndex + 1), ...slots.slice(0, activeIndex)];
+        return upcoming.find((slot) => !installedBySlot[slot.slot])?.slot ?? activeSlot.slot;
+      })()
+    : "";
   const selectSlot = (slot: string) => {
     setSelectedSlot(slot);
     setSelectedOption("");
-    setSelectionConfirmed(false);
-    setAcknowledged(false);
   };
 
   return (
@@ -202,21 +205,15 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
             {canEdit && !activePart ? <form action={addBuildComponent} className="mt-5 space-y-4">
               <input type="hidden" name="buildId" value={buildId} />
               <input type="hidden" name="slotKey" value={activeSlot.slot} />
+              <input type="hidden" name="nextSlot" value={nextSlot} />
               <label className="grid gap-2 text-sm font-semibold text-[#294333]">
                 Peças disponíveis
-                <select className="min-h-12 rounded-xl border border-[#d9e2d8] bg-white px-3 text-sm font-normal" name="selection" required value={selectedOption} onChange={(event) => { setSelectedOption(event.target.value); setSelectionConfirmed(false); setAcknowledged(false); }}>
+                <select className="min-h-12 rounded-xl border border-[#d9e2d8] bg-white px-3 text-sm font-normal" name="selection" required value={selectedOption} onChange={(event) => setSelectedOption(event.target.value)}>
                   <option value="" disabled>{options.length ? "Selecione peça e lote" : "Nenhuma unidade disponível"}</option>
                   {options.map((option) => <option key={option.selection} value={option.selection}>{option.label}</option>)}
                 </select>
               </label>
-              {selectedOption ? <div className={`rounded-xl border p-3 text-sm ${selectionConfirmed ? "border-[#cbdcc4] bg-[#f2f8ee] text-[#315b3c]" : "border-[#e5ece1] bg-[#fbfcfa] text-[#65766a]"}`}>
-                {selectionConfirmed ? <><span className="font-semibold">Escolha confirmada:</span> {selectedOptionLabel}</> : "Confira a peça e o lote selecionados. Confirme a escolha antes de reservar."}
-              </div> : null}
-              <label className="flex items-start gap-2 text-xs leading-5 text-[#718276]">
-                <input className="mt-0.5" type="checkbox" name="acknowledge" value="yes" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
-                Confirmo que posso continuar mesmo com alerta ou informação insuficiente de compatibilidade.
-              </label>
-              {!selectionConfirmed ? <button className="h-11 w-full rounded-xl border border-[#315b3c] bg-white px-4 font-semibold text-[#315b3c] hover:bg-[#f2f8ee] disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={!selectedOption} onClick={() => setSelectionConfirmed(true)}>Confirmar escolha</button> : <button className="h-11 w-full rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138] disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!selectedOption}>Reservar componente</button>}
+              <button className="h-11 w-full rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138] disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!selectedOption}>Reservar componente</button>
             </form> : null}
 
             {activePart && !canEdit ? <p className="mt-4 text-xs text-[#718276]">A montagem está encerrada e não pode mais ser alterada.</p> : null}

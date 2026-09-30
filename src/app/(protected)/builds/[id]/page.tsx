@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BuildAssembly, type AssemblyOption, type InstalledPart } from "./build-assembly";
 import { cancelBuild, completeBuild, saveBuildDraft, updateBuild } from "../actions";
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string; missing?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string; missing?: string; slot?: string }> };
 
 const categories = [
   { slot: "motherboard", category: "MOTHERBOARD", label: "Placa-mãe" },
@@ -38,7 +38,6 @@ const errorMessages: Record<string, string> = {
   "invalid-input": "Confira a peça, o lote e o slot selecionados.",
   "selection-unavailable": "A peça ou o lote não está mais disponível. Atualize a página.",
   incompatible: "A combinação informa uma incompatibilidade. O componente não foi reservado.",
-  "confirmation-required": "Há alertas ou informações insuficientes. Marque a confirmação para continuar.",
   "slot-filled": "Esse slot foi preenchido em outra atualização. Recarregue o build.",
   "reserve-failed": "Não foi possível reservar a peça. Confira o estoque disponível.",
   "release-failed": "Não foi possível liberar essa reserva.",
@@ -226,7 +225,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
         ].map(([label, value]) => <div key={label} className="rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm"><p className="text-sm text-[#718276]">{label}</p><p className="mt-2 text-xl font-semibold text-[#153b2a]">{value}</p></div>)}
       </section>
 
-      <BuildAssembly buildId={id} slots={buildSlots} optionsBySlot={optionsBySlot} installedBySlot={installedBySlot} canEdit={canEdit} motherboardHasM2={motherboardHasM2} />
+      <BuildAssembly buildId={id} slots={buildSlots} optionsBySlot={optionsBySlot} installedBySlot={installedBySlot} canEdit={canEdit} motherboardHasM2={motherboardHasM2} initialSlot={query.slot} />
 
       {missingRequiredLabels.length ? <p role="status" className="mt-5 rounded-xl border border-[#e7dfc4] bg-[#fffdf5] px-4 py-3 text-sm leading-6 text-[#6d613a]"><strong>Para concluir, ainda faltam:</strong> {missingRequiredLabels.join(", ")}.</p> : null}
 
