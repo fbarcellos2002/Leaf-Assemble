@@ -39,41 +39,6 @@ export function ComponentForm({ action }: Props) {
   const [lotCode, setLotCode] = useState("");
   const [lotNotes, setLotNotes] = useState("");
   const [showLotDetails, setShowLotDetails] = useState(false);
-  const [processorUrl, setProcessorUrl] = useState("");
-  const [processorPrefillPending, setProcessorPrefillPending] = useState(false);
-  const [processorPrefillError, setProcessorPrefillError] = useState("");
-  const [processorPrefillMessage, setProcessorPrefillMessage] = useState("");
-
-  async function prefillProcessorFromLink() {
-    setProcessorPrefillPending(true);
-    setProcessorPrefillError("");
-    setProcessorPrefillMessage("");
-    try {
-      const response = await fetch("/api/processor-prefill", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url: processorUrl }),
-      });
-      const data = await response.json() as {
-        error?: string;
-        manufacturer?: "Intel" | "AMD";
-        name?: string;
-        specs?: Record<string, string>;
-      };
-      if (!response.ok || !data.specs) throw new Error(data.error || "Não foi possível ler as especificações deste link.");
-      setManufacturer(data.manufacturer ?? "");
-      if (data.name) setName(data.name);
-      setSpecValues((current) => ({ ...current, ...data.specs }));
-      const found = Object.keys(data.specs).length;
-      setProcessorPrefillMessage(found
-        ? `${found} campo(s) técnico(s) encontrado(s). Confira os dados e complete o que não foi identificado antes de cadastrar.`
-        : "Nome do processador encontrado, mas as especificações não foram identificadas. Você pode preencher os campos manualmente.");
-    } catch (error) {
-      setProcessorPrefillError(error instanceof Error ? error.message : "Não foi possível ler as especificações deste link.");
-    } finally {
-      setProcessorPrefillPending(false);
-    }
-  }
 
   function updateSpecValue(key: string, value: string) {
     setSpecValues((current) => ({ ...current, [key]: value }));
@@ -219,16 +184,12 @@ export function ComponentForm({ action }: Props) {
             <select
               className="h-12 rounded-xl border border-[#d9e2d8] bg-white px-3"
               name="category"
-              disabled={processorPrefillPending}
               onChange={(event) => {
                 setCategory(event.target.value as ComponentCategory);
                 setSpecValues({});
                 setManufacturer("");
                 setSocketPlatform("");
                 setSocketModel("");
-                setProcessorUrl("");
-                setProcessorPrefillError("");
-                setProcessorPrefillMessage("");
               }}
               value={category}
             >
@@ -270,20 +231,6 @@ export function ComponentForm({ action }: Props) {
                 onChange={(event) => setName(event.target.value)}
               />
             </label>
-            {category === "CPU" ? (
-              <div className="mt-2 grid gap-3 rounded-xl border border-[#dce6d8] bg-[#f7f9f5] p-4">
-                <p className="text-xs leading-5 text-[#718276]">Cole o link oficial da página específica do processador no Intel ARK ou no site da AMD. Os campos encontrados serão preenchidos para você revisar.</p>
-                <label className="grid gap-2 text-sm font-medium text-[#294333]" htmlFor="processor-official-url">Link oficial do processador</label>
-                <input id="processor-official-url" className="h-11 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal" type="url" inputMode="url" autoComplete="url" placeholder="https://www.intel.com/... ou https://www.amd.com/..." value={processorUrl} onChange={(event) => setProcessorUrl(event.target.value)} />
-                <button className="h-10 w-fit rounded-xl border border-[#315b3c] px-4 text-sm font-semibold text-[#315b3c] hover:bg-[#eef5e9] disabled:opacity-60" type="button" disabled={!processorUrl.trim() || processorPrefillPending} onClick={prefillProcessorFromLink}>{processorPrefillPending ? "Lendo página…" : "Preencher pelo link"}</button>
-                {processorPrefillError ? <p role="alert" className="text-sm text-[#8d3c32]">{processorPrefillError}</p> : null}
-                {processorPrefillMessage ? <p role="status" className="text-sm text-[#315b3c]">{processorPrefillMessage}</p> : null}
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-[#4b7b3b]">
-                  <a href={`https://www.intel.com/content/www/us/en/ark/search.html?q=${encodeURIComponent(name || "processor")}`} target="_blank" rel="noreferrer">Pesquisar no Intel ARK ↗</a>
-                  <a href="https://www.amd.com/en/products/specifications/processors.html" target="_blank" rel="noreferrer">Pesquisar no catálogo AMD ↗</a>
-                </div>
-              </div>
-            ) : null}
           </div> : null}
           {category === "CASE" ? (
             <label className="grid gap-2 text-sm font-medium text-[#294333]">
