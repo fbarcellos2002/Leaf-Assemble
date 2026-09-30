@@ -8,7 +8,7 @@ export type ProcessorPrefill = {
 
 const MAX_HTML_BYTES = 2_500_000;
 const labels: Record<string, string[]> = {
-  socket: ["socket", "socket type", "cpu socket"],
+  socket: ["socket", "socket type", "cpu socket", "sockets supported"],
   cores: ["total cores", "cpu cores", "# of cpu cores", "number of cpu cores", "cores"],
   threads: ["total threads", "threads", "# of threads"],
   baseClockMhz: ["base frequency", "base clock", "processor base frequency"],
@@ -17,7 +17,7 @@ const labels: Record<string, string[]> = {
   integratedGraphics: ["processor graphics", "graphics model", "integrated graphics"],
   memoryTypes: ["system memory type", "memory type", "system memory specification"],
   maxMemoryFrequencyMhz: ["max memory speed", "memory speed", "system memory specification"],
-  maxMemoryCapacityGb: ["max memory size", "maximum memory capacity", "max memory capacity"],
+  maxMemoryCapacityGb: ["max memory size", "maximum memory capacity", "max memory capacity", "max. memory"],
 };
 
 function decodeHtml(value: string) {
@@ -52,11 +52,13 @@ function specificationRows(html: string) {
       if (key && cells[index + 1]) rows.set(key, cells[index + 1]);
     }
   }
-  for (const [, block] of html.matchAll(/<(?:dt|[^>]*class=["'][^"']*(?:label|name)[^"']*["'][^>]*)>([\s\S]*?)<\/(?:dt|[^>]+)>/gi)) {
+  for (const match of html.matchAll(/<(dt)\b[^>]*>([\s\S]*?)<\/dt>|<([a-z][\w:-]*)\b(?=[^>]*class=["'][^"']*(?:label|name|title|key)[^"']*["'])[^>]*>([\s\S]*?)<\/\3>/gi)) {
+    const block = match[2] ?? match[4] ?? "";
     const key = normalizeLabel(block);
-    const next = html.slice((html.indexOf(block) || 0) + block.length, (html.indexOf(block) || 0) + block.length + 800);
-    const value = next.match(/<(?:dd|[^>]*class=["'][^"']*(?:value|spec)[^"']*["'][^>]*)>([\s\S]*?)<\/(?:dd|[^>]+)>/i)?.[1];
-    if (key && value) rows.set(key, plainText(value));
+    const end = (match.index ?? 0) + match[0].length;
+    const next = html.slice(end, end + 1_200);
+    const value = next.match(/<dd\b[^>]*>([\s\S]*?)<\/dd>|<([a-z][\w:-]*)\b(?=[^>]*class=["'][^"']*(?:value|spec)[^"']*["'])[^>]*>([\s\S]*?)<\/\2>/i);
+    if (key && value) rows.set(key, plainText(value[1] ?? value[3] ?? ""));
   }
   return rows;
 }
@@ -166,8 +168,10 @@ export async function readProcessorLink(rawUrl: string): Promise<ProcessorPrefil
   if (["intel.com", "www.intel.com", "ark.intel.com"].includes(currentUrl.hostname)) manufacturer = "Intel";
   else if (["amd.com", "www.amd.com"].includes(currentUrl.hostname)) manufacturer = "AMD";
   else throw new Error("Use um link oficial do Intel ARK ou do site da AMD.");
-  if (manufacturer === "Intel" && !/\/ark\/products\/\d+\//i.test(currentUrl.pathname)) {
-    throw new Error("Cole a página específica do processador no Intel ARK, não uma busca ou página de catálogo.");
+  if (manufacturer === "Intel"
+    && !/\/ark\/products\/\d+\//i.test(currentUrl.pathname)
+    && !/\/content\/www\/[a-z]{2}\/[a-z]{2}\/products\/sku\/\d+\/[^/]+\/specifications\.html$/i.test(currentUrl.pathname)) {
+    throw new Error("Cole a página específica do processador no Intel ARK ou nas especificações da Intel.");
   }
   if (manufacturer === "AMD" && (!/\/products\/processors\//i.test(currentUrl.pathname) || !/\.html?$/i.test(currentUrl.pathname))) {
     throw new Error("Cole a página específica do processador na AMD, não a lista geral de especificações.");

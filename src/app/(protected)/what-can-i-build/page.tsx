@@ -1,8 +1,10 @@
 import Link from "next/link";
 
-import { calculateBuildCapacity } from "@/lib/inventory/capacity";
+import { createClient } from "@/lib/supabase/server";
+import type { CompatibilityPart } from "@/lib/compatibility/engine";
+import { calculateBuildCapacity, type InProgressBuild } from "@/lib/inventory/capacity";
 import { loadInventorySnapshot } from "@/lib/inventory/read";
-import type { ComponentCategory } from "@/lib/inventory/specs";
+import { componentCategorySchema, type ComponentCategory } from "@/lib/inventory/specs";
 
 const categoryLabels: Record<ComponentCategory, string> = {
   CPU: "Processador",
@@ -16,8 +18,33 @@ const categoryLabels: Record<ComponentCategory, string> = {
 };
 
 export default async function WhatCanIBuildPage() {
-  const inventory = await loadInventorySnapshot();
-  const capacity = calculateBuildCapacity(inventory.components);
+  const [inventory, supabase] = await Promise.all([loadInventorySnapshot(), createClient()]);
+  const { data: activeBuildRows, error: activeBuildsError } = await supabase
+    .from("builds")
+    .select("status, build_components(is_active, components(id, category, manufacturer, name, model, description, specs))")
+    .is("removed_at", null)
+    .in("status", ["DRAFT", "INCOMPLETE"]);
+  const inProgressBuilds: InProgressBuild[] = (activeBuildRows ?? []).map((build) => ({
+    parts: (build.build_components ?? []).filter((item) => item.is_active).flatMap((item) => {
+      const related = Array.isArray(item.components) ? item.components[0] : item.components;
+      if (!related) return [];
+      const parsedCategory = componentCategorySchema.safeParse(related.category);
+      if (!parsedCategory.success) return [];
+      const part = {
+        id: related.id,
+        category: parsedCategory.data,
+        manufacturer: related.manufacturer,
+        name: related.name,
+        model: related.model,
+        description: related.description,
+        specs: related.specs && typeof related.specs === "object" && !Array.isArray(related.specs)
+          ? related.specs as Record<string, unknown>
+          : {},
+      } satisfies CompatibilityPart;
+      return [part];
+    }),
+  }));
+  const capacity = calculateBuildCapacity(inventory.components, inProgressBuilds);
   const shortages = Object.entries(capacity.onePartAwayByCategory)
     .filter((entry): entry is [ComponentCategory, number] => Boolean(entry[1]))
     .sort((a, b) => b[1] - a[1]);
@@ -44,6 +71,7 @@ export default async function WhatCanIBuildPage() {
       </div>
 
       {inventory.error ? <p role="alert" className="mt-6 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível ler o estoque. Confira a conexão e as permissões do Supabase.</p> : null}
+      {activeBuildsError ? <p role="alert" className="mt-3 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível considerar os computadores em rascunho nesta contagem.</p> : null}
 
       <section className="mt-7 grid gap-4 sm:grid-cols-2">
         <article className="rounded-2xl border border-[#cbdcc4] bg-white p-5 shadow-sm sm:p-6">
@@ -56,16 +84,6 @@ export default async function WhatCanIBuildPage() {
           <p className="mt-3 text-4xl font-semibold tracking-tight text-[#315b3c]">{capacity.onePartAwayBuilds}</p>
           <p className="mt-2 text-sm leading-6 text-[#718276]">Conjuntos compatíveis que já têm todas as outras peças necessárias.</p>
         </article>
-      </section>
-
-      <section className="mt-6 rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm sm:p-6">
-        <p className="text-sm font-semibold text-[#5da52f]">Leitura do estoque</p>
-        <h2 className="mt-1 text-xl font-semibold text-[#153b2a]">Gargalo de montagem</h2>
-        {capacity.bottleneck ? (
-          <p className="mt-3 leading-7 text-[#65766a]">A categoria que mais limita novas montagens neste momento é <strong className="text-[#294333]">{categoryLabels[capacity.bottleneck]}</strong>.</p>
-        ) : (
-          <p className="mt-3 leading-7 text-[#65766a]">Até o momento, não há um gargalo significativo entre as categorias obrigatórias. As quantidades estão relativamente equilibradas.</p>
-        )}
       </section>
 
       <section className="mt-6 rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm sm:p-6">

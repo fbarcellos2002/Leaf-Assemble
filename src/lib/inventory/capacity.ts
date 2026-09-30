@@ -9,6 +9,8 @@ export type InventoryPool = CompatibilityPart & {
   }>;
 };
 
+export type InProgressBuild = { parts: CompatibilityPart[] };
+
 type StockOption = CompatibilityPart & {
   resourceKey: string;
   available: number;
@@ -72,7 +74,7 @@ function option(part: InventoryPool, lotId: string, available: number, purchased
   };
 }
 
-function isDiscreteGraphicsRequired(cpu: StockOption) {
+function isDiscreteGraphicsRequired(cpu: CompatibilityPart) {
   return cpu.specs.integratedGraphics !== true;
 }
 
@@ -217,6 +219,38 @@ function enumerateOnePartAway(
   return { bundles: [...distinct.values()], uncertainCombinations, candidateLimitReached };
 }
 
+function countInProgressBuildsOnePartAway(
+  builds: InProgressBuild[],
+  missingPartOptions: Map<ComponentCategory, StockOption[]>,
+) {
+  const byCategory: Partial<Record<ComponentCategory, number>> = {};
+  let count = 0;
+  for (const build of builds) {
+    if (!build.parts.length) continue;
+    const selectedCategories = new Set(build.parts.map((part) => part.category));
+    let missingCategory: ComponentCategory | undefined;
+    for (const category of [...requiredCategories, "GPU" as const]) {
+      if (selectedCategories.has(category)) continue;
+      for (const candidate of missingPartOptions.get(category) ?? []) {
+        const cpu = build.parts.find((part) => part.category === "CPU")
+          ?? (candidate.category === "CPU" ? candidate : undefined);
+        const missing = requiredCategories.filter((required) => !selectedCategories.has(required));
+        if (cpu && isDiscreteGraphicsRequired(cpu) && !selectedCategories.has("GPU")) missing.push("GPU");
+        if (missing.length !== 1 || missing[0] !== category) continue;
+        if (evaluateCompatibility([...build.parts, candidate]).status !== "compatible") continue;
+        missingCategory = category;
+        break;
+      }
+      if (missingCategory) break;
+    }
+    if (missingCategory) {
+      count += 1;
+      byCategory[missingCategory] = (byCategory[missingCategory] ?? 0) + 1;
+    }
+  }
+  return { count, byCategory };
+}
+
 function optimizeBundles(
   bundles: BuildBundle[],
   initialResources: Map<string, number>,
@@ -283,7 +317,7 @@ function optimizeBundles(
   return { plan: best, exact: !searchLimitReached, searchLimitReached, nodes };
 }
 
-export function calculateBuildCapacity(inventory: InventoryPool[]): CapacityResult {
+export function calculateBuildCapacity(inventory: InventoryPool[], inProgressBuilds: InProgressBuild[] = []): CapacityResult {
   const partsByCategory = new Map<ComponentCategory, InventoryPool[]>();
   for (const category of componentCategories) partsByCategory.set(category, []);
   for (const part of inventory) partsByCategory.get(part.category)?.push(part);
@@ -330,10 +364,14 @@ export function calculateBuildCapacity(inventory: InventoryPool[]): CapacityResu
   }
   const nearEnumeration = enumerateOnePartAway(remainingOptions, missingPartOptions);
   const nearPlan = optimizeBundles(nearEnumeration.bundles, remainingResources, MAX_BUILDS, requiredCategories.length - 1);
+  const inProgressNearBuilds = countInProgressBuildsOnePartAway(inProgressBuilds, missingPartOptions);
   const onePartAwayByCategory: Partial<Record<ComponentCategory, number>> = {};
   for (const bundle of nearPlan.plan) {
     const category = bundle.missingCategory;
     if (category) onePartAwayByCategory[category] = (onePartAwayByCategory[category] ?? 0) + 1;
+  }
+  for (const [category, count] of Object.entries(inProgressNearBuilds.byCategory) as [ComponentCategory, number][]) {
+    onePartAwayByCategory[category] = (onePartAwayByCategory[category] ?? 0) + count;
   }
 
   const catalogComplete = requiredCategories.every((category) => (partsByCategory.get(category)?.length ?? 0) > 0);
@@ -392,7 +430,7 @@ export function calculateBuildCapacity(inventory: InventoryPool[]): CapacityResu
     buildsWithPurchases,
     additionalWithPurchases: buildsWithPurchases === null ? null : Math.max(0, buildsWithPurchases - buildsNow),
     purchasesByCategory,
-    onePartAwayBuilds: nearPlan.plan.length,
+    onePartAwayBuilds: nearPlan.plan.length + inProgressNearBuilds.count,
     onePartAwayByCategory,
     missingCatalogCategories: bottleneckCategories.filter((category) => (partsByCategory.get(category)?.length ?? 0) === 0),
     bottleneck,
