@@ -230,9 +230,14 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
       </section>
 
       {canEdit ? (
-        <div className="mt-7 flex flex-wrap gap-3">
-          {completeReady ? <form action={completeBuild}><input type="hidden" name="buildId" value={id} /><button className="h-11 rounded-xl bg-[#153b2a] px-5 font-semibold text-white hover:bg-[#205138]" type="submit">Concluir build</button></form> : null}
-          <form action={cancelBuild}><input type="hidden" name="buildId" value={id} /><button className="h-11 rounded-xl border border-[#e4c8c2] px-5 font-semibold text-[#8d493f] hover:bg-[#fff5f3]" type="submit">Cancelar build</button></form>
+        <div className="mt-7 flex flex-col gap-3 rounded-2xl border border-[#dce6d8] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          {completeReady ? <form action={completeBuild}><input type="hidden" name="buildId" value={id} /><button className="h-11 rounded-xl bg-[#153b2a] px-5 font-semibold text-white hover:bg-[#205138]" type="submit">Concluir build</button></form> : (
+            <div className="flex items-center gap-3 rounded-xl bg-[#f2f8ee] px-4 py-3 text-sm text-[#315b3c]">
+              <span className="rounded-full bg-[#dcebd4] px-3 py-1 font-semibold">{build.status === "DRAFT" ? "Rascunho" : "Montagem incompleta"}</span>
+              <span>{requiredFilled}/{requiredSlotCount} requisitos preenchidos. A montagem continua salva enquanto você escolhe as peças.</span>
+            </div>
+          )}
+          <form action={cancelBuild}><input type="hidden" name="buildId" value={id} /><button className="h-11 shrink-0 rounded-xl border border-[#e4c8c2] px-5 font-semibold text-[#8d493f] hover:bg-[#fff5f3]" type="submit">Cancelar build</button></form>
         </div>
       ) : null}
     </div>

@@ -99,13 +99,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 export async function addBuildComponent(formData: FormData) {
   await requireActiveProfile();
+  const requestedBuildId = z.uuid().safeParse(formData.get("buildId"));
   const parsed = addComponentSchema.safeParse({
     buildId: formData.get("buildId"),
     slotKey: formData.get("slotKey"),
     selection: formData.get("selection"),
-    acknowledge: formData.get("acknowledge"),
+    acknowledge: formData.get("acknowledge") ?? undefined,
   });
-  if (!parsed.success) redirect("/builds?error=invalid-input");
+  if (!parsed.success) redirect(requestedBuildId.success ? `/builds/${requestedBuildId.data}?error=invalid-input` : "/builds?error=invalid-input");
   const [componentId, lotId] = parsed.data.selection.split("~");
   const supabase = await createClient();
 

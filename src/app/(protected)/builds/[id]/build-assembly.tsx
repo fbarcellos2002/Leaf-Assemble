@@ -115,6 +115,16 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
   const activePart = activeSlot ? installedBySlot[activeSlot.slot] : undefined;
   const options = activeSlot ? optionsBySlot[activeSlot.slot] ?? [] : [];
   const memorySlots = slots.filter((slot) => slot.slot.startsWith("ram-"));
+  const [selectedOption, setSelectedOption] = useState("");
+  const [selectionConfirmed, setSelectionConfirmed] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const selectedOptionLabel = options.find((option) => option.selection === selectedOption)?.label;
+  const selectSlot = (slot: string) => {
+    setSelectedSlot(slot);
+    setSelectedOption("");
+    setSelectionConfirmed(false);
+    setAcknowledged(false);
+  };
 
   return (
     <section className="mt-7 overflow-hidden rounded-3xl border border-[#dce6d8] bg-white shadow-sm">
@@ -134,7 +144,7 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
                 <button
                   key={slot.slot}
                   type="button"
-                  onClick={() => setSelectedSlot(slot.slot)}
+                  onClick={() => selectSlot(slot.slot)}
                   aria-label={`${slot.label}${installed ? `: ${installed.description}` : ": vazio"}`}
                   aria-pressed={active}
                   title={installed?.description ?? slot.label}
@@ -159,7 +169,7 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
             <div className="mt-3 space-y-2">
               {memorySlots.map((slot) => {
                 const installed = installedBySlot[slot.slot];
-                return <button key={slot.slot} type="button" onClick={() => setSelectedSlot(slot.slot)} className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${selectedSlot === slot.slot ? "border-[#8ab875] bg-[#f0f7eb]" : "border-[#e5ece1] bg-[#fbfcfa] hover:border-[#b7cdaa]"}`}>
+                return <button key={slot.slot} type="button" onClick={() => selectSlot(slot.slot)} className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${selectedSlot === slot.slot ? "border-[#8ab875] bg-[#f0f7eb]" : "border-[#e5ece1] bg-[#fbfcfa] hover:border-[#b7cdaa]"}`}>
                   <span className="flex items-center gap-3">
                     <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${installed ? "bg-[#315b3c] text-white" : "bg-[#eaf1e4] text-[#315b3c]"}`}>{slot.slot.slice(-1)}</span>
                     <span>
@@ -194,16 +204,19 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
               <input type="hidden" name="slotKey" value={activeSlot.slot} />
               <label className="grid gap-2 text-sm font-semibold text-[#294333]">
                 Peças disponíveis
-                <select className="min-h-12 rounded-xl border border-[#d9e2d8] bg-white px-3 text-sm font-normal" name="selection" required defaultValue="">
+                <select className="min-h-12 rounded-xl border border-[#d9e2d8] bg-white px-3 text-sm font-normal" name="selection" required value={selectedOption} onChange={(event) => { setSelectedOption(event.target.value); setSelectionConfirmed(false); setAcknowledged(false); }}>
                   <option value="" disabled>{options.length ? "Selecione peça e lote" : "Nenhuma unidade disponível"}</option>
                   {options.map((option) => <option key={option.selection} value={option.selection}>{option.label}</option>)}
                 </select>
               </label>
+              {selectedOption ? <div className={`rounded-xl border p-3 text-sm ${selectionConfirmed ? "border-[#cbdcc4] bg-[#f2f8ee] text-[#315b3c]" : "border-[#e5ece1] bg-[#fbfcfa] text-[#65766a]"}`}>
+                {selectionConfirmed ? <><span className="font-semibold">Escolha confirmada:</span> {selectedOptionLabel}</> : "Confira a peça e o lote selecionados. Confirme a escolha antes de reservar."}
+              </div> : null}
               <label className="flex items-start gap-2 text-xs leading-5 text-[#718276]">
-                <input className="mt-0.5" type="checkbox" name="acknowledge" value="yes" />
+                <input className="mt-0.5" type="checkbox" name="acknowledge" value="yes" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
                 Confirmo que posso continuar mesmo com alerta ou informação insuficiente de compatibilidade.
               </label>
-              <button className="h-11 w-full rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138] disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!options.length}>Reservar componente</button>
+              {!selectionConfirmed ? <button className="h-11 w-full rounded-xl border border-[#315b3c] bg-white px-4 font-semibold text-[#315b3c] hover:bg-[#f2f8ee] disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={!selectedOption} onClick={() => setSelectionConfirmed(true)}>Confirmar escolha</button> : <button className="h-11 w-full rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138] disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!selectedOption}>Reservar componente</button>}
             </form> : null}
 
             {activePart && !canEdit ? <p className="mt-4 text-xs text-[#718276]">A montagem está encerrada e não pode mais ser alterada.</p> : null}
@@ -213,7 +226,7 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
       <div className="flex flex-wrap gap-2 border-t border-[#e7ede4] bg-[#fbfcfa] px-5 py-4 sm:px-7">
         {slots.filter((slot) => !slot.slot.startsWith("ram-")).map((slot) => {
           const installed = installedBySlot[slot.slot];
-          return <button key={slot.slot} type="button" onClick={() => setSelectedSlot(slot.slot)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${selectedSlot === slot.slot ? "border-[#315b3c] bg-[#eaf1e4] text-[#315b3c]" : "border-[#dce6d8] bg-white text-[#718276]"}`}>
+          return <button key={slot.slot} type="button" onClick={() => selectSlot(slot.slot)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${selectedSlot === slot.slot ? "border-[#315b3c] bg-[#eaf1e4] text-[#315b3c]" : "border-[#dce6d8] bg-white text-[#718276]"}`}>
             {slot.label}{installed ? " ✓" : ""}
           </button>;
         })}
