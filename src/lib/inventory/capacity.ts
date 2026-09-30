@@ -19,6 +19,7 @@ type BuildBundle = {
   parts: StockOption[];
   resources: string[];
   status: "compatible" | "warning";
+  missingCategory?: ComponentCategory;
 };
 
 export type CapacityResult = {
@@ -27,6 +28,9 @@ export type CapacityResult = {
   buildsWithPurchases: number | null;
   additionalWithPurchases: number | null;
   purchasesByCategory: Partial<Record<ComponentCategory, number>>;
+  onePartAwayBuilds: number;
+  onePartAwayByCategory: Partial<Record<ComponentCategory, number>>;
+  missingCatalogCategories: ComponentCategory[];
   bottleneck: ComponentCategory | null;
   uncertainCombinations: number;
   searchExact: boolean;
@@ -57,7 +61,9 @@ function option(part: InventoryPool, lotId: string, available: number, purchased
     lotId,
     category: part.category,
     manufacturer: part.manufacturer,
+    name: part.name,
     model: part.model,
+    description: part.description,
     specs: asRecord(part.specs),
     resourceKey: `${purchased ? "purchase" : "lot"}:${lotId}`,
     available: Math.min(available, MAX_BUILDS),
@@ -140,10 +146,78 @@ function enumerateBundles(optionsByCategory: Map<ComponentCategory, StockOption[
   return { bundles: ranked, uncertainCombinations, candidateLimitReached };
 }
 
+function enumerateOnePartAway(
+  optionsByCategory: Map<ComponentCategory, StockOption[]>,
+  missingPartOptions: Map<ComponentCategory, StockOption[]>,
+) {
+  const bundles: BuildBundle[] = [];
+  let visited = 0;
+  let candidateLimitReached = false;
+  let uncertainCombinations = 0;
+
+  for (const missingCategory of [...requiredCategories, "GPU" as const]) {
+    const includedCategories = requiredCategories.filter((category) => category !== missingCategory);
+    const chosen: StockOption[] = [];
+    const visit = (index: number) => {
+      if (candidateLimitReached) return;
+      if (index === includedCategories.length) {
+        const missingChoices = missingPartOptions.get(missingCategory) ?? [];
+        for (const missingPart of missingChoices) {
+          const candidateCpu = missingCategory === "CPU" ? missingPart : chosen.find((part) => part.category === "CPU");
+          const needsGpu = candidateCpu ? isDiscreteGraphicsRequired(candidateCpu) : false;
+          if (missingCategory === "GPU" && !needsGpu) continue;
+          const gpuChoices: Array<StockOption | undefined> = needsGpu
+            ? missingCategory === "GPU" ? [undefined] : optionsByCategory.get("GPU") ?? []
+            : [undefined];
+          for (const gpu of gpuChoices) {
+            visited += 1;
+            if (visited > MAX_BUNDLE_CANDIDATES) {
+              candidateLimitReached = true;
+              return;
+            }
+            const validationParts = [...chosen, missingPart, ...(gpu ? [gpu] : [])];
+            const compatibility = evaluateCompatibility(validationParts);
+            if (compatibility.status !== "compatible") {
+              if (compatibility.status === "unknown") uncertainCombinations += 1;
+              continue;
+            }
+            // The missing part is used only to validate whether this partial set
+            // has a real compatible completion; only the remaining physical units
+            // are reserved in the one-part-away packing plan.
+            bundles.push({
+              parts: chosen,
+              resources: chosen.map((part) => part.resourceKey),
+              status: "compatible",
+              missingCategory,
+            });
+          }
+        }
+        return;
+      }
+      const category = includedCategories[index];
+      for (const part of optionsByCategory.get(category) ?? []) {
+        chosen.push(part);
+        visit(index + 1);
+        chosen.pop();
+        if (candidateLimitReached) return;
+      }
+    };
+    visit(0);
+  }
+
+  const distinct = new Map<string, BuildBundle>();
+  for (const bundle of bundles) {
+    const key = `${bundle.missingCategory}:${[...bundle.resources].sort().join("|")}`;
+    if (!distinct.has(key)) distinct.set(key, bundle);
+  }
+  return { bundles: [...distinct.values()], uncertainCombinations, candidateLimitReached };
+}
+
 function optimizeBundles(
   bundles: BuildBundle[],
   initialResources: Map<string, number>,
   maxBuilds: number,
+  minimumRequiredParts = requiredCategories.length,
 ) {
   const categoriesByResource = new Map<string, ComponentCategory>();
   for (const bundle of bundles) {
@@ -174,7 +248,9 @@ function optimizeBundles(
         byCategory.set(category, (byCategory.get(category) ?? 0) + quantity);
       }
     }
-    const categoryBound = Math.min(...requiredCategories.map((category) => byCategory.get(category) ?? 0));
+    const categoryBound = minimumRequiredParts === requiredCategories.length
+      ? Math.min(...requiredCategories.map((category) => byCategory.get(category) ?? 0))
+      : Math.floor(requiredCategories.reduce((sum, category) => sum + (byCategory.get(category) ?? 0), 0) / minimumRequiredParts);
     return Math.min(maxBuilds, count + categoryBound);
   };
 
@@ -230,6 +306,30 @@ export function calculateBuildCapacity(inventory: InventoryPool[]): CapacityResu
   const compatiblePlan = optimizeBundles(greenBundles, currentResources, MAX_BUILDS);
   const currentPlan = optimizeBundles(currentEnumeration.bundles, currentResources, MAX_BUILDS);
 
+  const remainingOptions = new Map<ComponentCategory, StockOption[]>();
+  const remainingResources = new Map<string, number>();
+  for (const category of componentCategories) {
+    remainingOptions.set(category, (physicalOptions.get(category) ?? []).flatMap((part) => {
+      const available = Math.max(0, part.available - compatiblePlan.plan.filter((bundle) => bundle.resources.includes(part.resourceKey)).length);
+      if (available <= 0) return [];
+      remainingResources.set(part.resourceKey, available);
+      return [{ ...part, available }];
+    }));
+  }
+  const missingPartOptions = new Map<ComponentCategory, StockOption[]>();
+  for (const category of [...requiredCategories, "GPU" as const]) {
+    missingPartOptions.set(category, (partsByCategory.get(category) ?? []).map((part) =>
+      option(part, `missing-${part.id}`, 1, true),
+    ));
+  }
+  const nearEnumeration = enumerateOnePartAway(remainingOptions, missingPartOptions);
+  const nearPlan = optimizeBundles(nearEnumeration.bundles, remainingResources, MAX_BUILDS, requiredCategories.length - 1);
+  const onePartAwayByCategory: Partial<Record<ComponentCategory, number>> = {};
+  for (const bundle of nearPlan.plan) {
+    const category = bundle.missingCategory;
+    if (category) onePartAwayByCategory[category] = (onePartAwayByCategory[category] ?? 0) + 1;
+  }
+
   const catalogComplete = requiredCategories.every((category) => (partsByCategory.get(category)?.length ?? 0) > 0);
   const purchaseBound = catalogComplete ? MAX_BUILDS : 0;
 
@@ -284,12 +384,15 @@ export function calculateBuildCapacity(inventory: InventoryPool[]): CapacityResu
     buildsWithPurchases,
     additionalWithPurchases: buildsWithPurchases === null ? null : Math.max(0, buildsWithPurchases - buildsNow),
     purchasesByCategory,
+    onePartAwayBuilds: nearPlan.plan.length,
+    onePartAwayByCategory,
+    missingCatalogCategories: requiredCategories.filter((category) => (partsByCategory.get(category)?.length ?? 0) === 0),
     bottleneck,
     uncertainCombinations: currentEnumeration.uncertainCombinations,
-    searchExact: compatiblePlan.exact && currentPlan.exact && purchasePlan.exact
+    searchExact: compatiblePlan.exact && currentPlan.exact && purchasePlan.exact && nearPlan.exact
       && !currentEnumeration.candidateLimitReached && !purchaseEnumeration.candidateLimitReached,
     searchLimitReached: compatiblePlan.searchLimitReached || currentPlan.searchLimitReached
-      || purchasePlan.searchLimitReached || currentEnumeration.candidateLimitReached
-      || purchaseEnumeration.candidateLimitReached,
+      || purchasePlan.searchLimitReached || nearPlan.searchLimitReached || currentEnumeration.candidateLimitReached
+      || purchaseEnumeration.candidateLimitReached || nearEnumeration.candidateLimitReached,
   };
 }

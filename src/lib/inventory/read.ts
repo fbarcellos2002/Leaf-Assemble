@@ -9,14 +9,16 @@ export const loadInventorySnapshot = cache(async () => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("components")
-    .select("id, category, manufacturer, model, specs, component_lots(id, lot_code, quantity_total, available_quantity, reserved_quantity, used_quantity)")
+    .select("id, category, manufacturer, name, model, description, specs, component_lots(id, lot_code, quantity_total, available_quantity, reserved_quantity, used_quantity)")
     .order("manufacturer");
 
   const components = (data ?? []).map((component) => ({
     id: component.id,
     category: componentCategorySchema.parse(component.category),
     manufacturer: component.manufacturer,
+    name: component.name,
     model: component.model,
+    description: component.description,
     specs: component.specs,
     lots: (component.component_lots ?? []).map((lot) => ({
       id: lot.id,

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireActiveProfile } from "@/lib/auth/profile";
-import { evaluateCompatibility, type CompatibilityPart } from "@/lib/compatibility/engine";
+import { evaluateCompatibility, storageInterfaceSupported, type CompatibilityPart } from "@/lib/compatibility/engine";
 import { componentCategorySchema } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
@@ -152,6 +152,34 @@ export async function addBuildComponent(formData: FormData) {
     description: candidate.description,
     specs: asRecord(candidate.specs),
   };
+  const selectedCpu = selectedParts.find((part) => part.category === "CPU");
+  const selectedBoard = selectedParts.find((part) => part.category === "MOTHERBOARD");
+  const requiresPlatform = candidatePart.category === "CPU"
+    || candidatePart.category === "RAM"
+    || candidatePart.category === "CPU_COOLER"
+    || candidatePart.category === "GPU"
+    || candidatePart.category === "STORAGE";
+  if (requiresPlatform && !selectedBoard) redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);
+  if ((candidatePart.category === "RAM" || candidatePart.category === "CPU_COOLER") && !selectedCpu) {
+    redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);
+  }
+  if (candidatePart.category === "CPU" && selectedBoard
+    && evaluateCompatibility([candidatePart, selectedBoard]).status !== "compatible") {
+    redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);
+  }
+  if ((candidatePart.category === "RAM" || candidatePart.category === "CPU_COOLER") && selectedCpu && selectedBoard
+    && evaluateCompatibility([selectedCpu, selectedBoard]).status !== "compatible") {
+    redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);
+  }
+  if (parsed.data.slotKey === "storage-4") {
+    const interfaces = selectedBoard?.specs.storageInterfaces;
+    const supported = Array.isArray(interfaces) ? interfaces.filter((item): item is string => typeof item === "string") : [];
+    const interfaceValue = typeof candidatePart.specs.interface === "string" ? candidatePart.specs.interface : "";
+    const formFactor = typeof candidatePart.specs.formFactor === "string" ? candidatePart.specs.formFactor.toLocaleLowerCase("pt-BR") : "";
+    if (!formFactor.startsWith("m.2") || !storageInterfaceSupported(interfaceValue, supported)) {
+      redirect(`/builds/${parsed.data.buildId}?error=incompatible`);
+    }
+  }
   const compatibility = evaluateCompatibility([...selectedParts, candidatePart]);
   if (compatibility.status === "incompatible") {
     redirect(`/builds/${parsed.data.buildId}?error=incompatible`);

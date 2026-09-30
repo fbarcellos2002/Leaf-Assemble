@@ -2,29 +2,35 @@ import Link from "next/link";
 
 import { calculateBuildCapacity } from "@/lib/inventory/capacity";
 import { loadInventorySnapshot } from "@/lib/inventory/read";
-import { componentCategories, type ComponentCategory } from "@/lib/inventory/specs";
+import type { ComponentCategory } from "@/lib/inventory/specs";
 
 const categoryLabels: Record<ComponentCategory, string> = {
-  CPU: "Processadores (CPU)",
-  MOTHERBOARD: "Placas-mãe",
-  RAM: "Memórias RAM",
-  GPU: "Placas de vídeo",
-  STORAGE: "Armazenamentos",
-  PSU: "Fontes",
-  CASE: "Gabinetes",
-  CPU_COOLER: "Coolers de CPU",
+  CPU: "Processador",
+  MOTHERBOARD: "Placa-mãe",
+  RAM: "Memória RAM",
+  GPU: "Placa de vídeo",
+  STORAGE: "Armazenamento",
+  PSU: "Fonte de alimentação",
+  CASE: "Gabinete",
+  CPU_COOLER: "Cooler do processador",
 };
-
-const requiredCategories: ComponentCategory[] = ["CPU", "MOTHERBOARD", "RAM", "STORAGE", "PSU", "CASE"];
 
 export default async function WhatCanIBuildPage() {
   const inventory = await loadInventorySnapshot();
   const capacity = calculateBuildCapacity(inventory.components);
-  const presentCategories = new Set(inventory.components.map((component) => component.category));
-  const missingCategories = requiredCategories.filter((category) => !presentCategories.has(category));
-  const purchaseEntries = componentCategories
-    .filter((category) => (capacity.purchasesByCategory[category] ?? 0) > 0)
-    .map((category) => ({ category, quantity: capacity.purchasesByCategory[category] ?? 0 }));
+  const shortages = Object.entries(capacity.onePartAwayByCategory)
+    .filter((entry): entry is [ComponentCategory, number] => Boolean(entry[1]))
+    .sort((a, b) => b[1] - a[1]);
+  const displayedShortages = shortages.slice(0, 4).map(([category, count]) => {
+    const candidates = inventory.components
+      .filter((part) => part.category === category)
+      .map((part) => ({
+        label: part.description?.trim() || part.name?.trim() || `${part.manufacturer} ${part.model}`,
+        available: part.lots.reduce((sum, lot) => sum + Math.max(0, lot.available), 0),
+      }))
+      .sort((a, b) => b.available - a.available);
+    return { category, count, candidates };
+  });
 
   return (
     <div>
@@ -32,82 +38,62 @@ export default async function WhatCanIBuildPage() {
       <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-[#153b2a] sm:text-4xl">O que posso montar?</h1>
-          <p className="mt-2 max-w-2xl leading-7 text-[#607266]">
-            O cálculo usa as unidades disponíveis, considera cada lote separadamente e descarta combinações incompatíveis.
-          </p>
+          <p className="mt-2 max-w-2xl leading-7 text-[#607266]">Veja quantos computadores completos o estoque permite montar e quais combinações estão a uma peça de ficarem prontas.</p>
         </div>
-        <Link href="/estoque/novo" className="inline-flex h-10 items-center justify-center rounded-xl bg-[#5da52f] px-4 text-sm font-semibold text-white hover:bg-[#4b8d26]">
-          Cadastrar componente
-        </Link>
+        <Link href="/estoque/novo" className="inline-flex h-10 items-center justify-center rounded-xl bg-[#153b2a] px-4 text-sm font-semibold text-white hover:bg-[#205138]">Cadastrar componente</Link>
       </div>
 
-      {inventory.error ? (
-        <p role="alert" className="mt-6 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">
-          Não foi possível ler o estoque. Confira a conexão e as permissões do Supabase.
-        </p>
-      ) : null}
+      {inventory.error ? <p role="alert" className="mt-6 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível ler o estoque. Confira a conexão e as permissões do Supabase.</p> : null}
 
-      <section className="mt-7 grid gap-4 sm:grid-cols-3">
-        {[
-          ["Builds compatíveis agora", capacity.compatibleBuilds, "Somente combinações validadas sem ressalvas."],
-          ["Incluindo avisos", capacity.buildsNow, "Combinações montáveis; inclui avisos de compatibilidade."],
-          ["Após comprar faltantes", capacity.buildsWithPurchases ?? "Indisponível", capacity.buildsWithPurchases === null ? "Cadastre ao menos uma opção de cada categoria essencial." : `Até ${capacity.additionalWithPurchases ?? 0} build(s) além do estoque atual.`],
-        ].map(([label, value, hint]) => (
-          <article key={String(label)} className="rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm">
-            <p className="text-sm text-[#718276]">{label}</p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-[#153b2a]">{value}</p>
-            <p className="mt-2 text-sm leading-6 text-[#718276]">{hint}</p>
-          </article>
-        ))}
+      <section className="mt-7 grid gap-4 sm:grid-cols-2">
+        <article className="rounded-2xl border border-[#cbdcc4] bg-white p-5 shadow-sm sm:p-6">
+          <p className="text-sm font-medium text-[#718276]">Computadores completos e compatíveis</p>
+          <p className="mt-3 text-4xl font-semibold tracking-tight text-[#153b2a]">{capacity.compatibleBuilds}</p>
+          <p className="mt-2 text-sm leading-6 text-[#718276]">Combinações validadas com os dados técnicos cadastrados e sem incompatibilidades.</p>
+        </article>
+        <article className="rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm sm:p-6">
+          <p className="text-sm font-medium text-[#718276]">A uma peça de completar</p>
+          <p className="mt-3 text-4xl font-semibold tracking-tight text-[#315b3c]">{capacity.onePartAwayBuilds}</p>
+          <p className="mt-2 text-sm leading-6 text-[#718276]">Conjuntos compatíveis que já têm todas as outras peças necessárias.</p>
+        </article>
       </section>
 
-      <div className="mt-7 grid gap-5 lg:grid-cols-2">
-        <section className="rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-sm font-semibold text-[#5da52f]">Estoque atual</p>
-          <h2 className="mt-2 text-xl font-semibold text-[#153b2a]">Limite e gargalo</h2>
-          <p className="mt-3 leading-7 text-[#65766a]">
-            {capacity.bottleneck
-              ? `A categoria que mais limita as combinações atuais é ${categoryLabels[capacity.bottleneck].toLocaleLowerCase("pt-BR")}. O cálculo reserva cada unidade no máximo uma vez por build.`
-              : "Ainda não há componentes suficientes para apontar um gargalo. Cadastre componentes e seus lotes disponíveis."}
-          </p>
-          <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-xl bg-[#f5f7f2] p-4"><dt className="text-[#718276]">Componentes cadastrados</dt><dd className="mt-1 text-lg font-semibold text-[#153b2a]">{inventory.components.length}</dd></div>
-            <div className="rounded-xl bg-[#f5f7f2] p-4"><dt className="text-[#718276]">Unidades disponíveis</dt><dd className="mt-1 text-lg font-semibold text-[#153b2a]">{inventory.availableQuantity}</dd></div>
-          </dl>
-        </section>
-
-        <section className="rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-sm font-semibold text-[#5da52f]">Cenário de compra</p>
-          <h2 className="mt-2 text-xl font-semibold text-[#153b2a]">O que comprar para ampliar?</h2>
-          {missingCategories.length ? (
-            <>
-              <p className="mt-3 leading-7 text-[#65766a]">Ainda faltam categorias essenciais no catálogo; por isso não é possível estimar o cenário de compra.</p>
-              <ul className="mt-4 space-y-2 text-sm text-[#53675a]">
-                {missingCategories.map((category) => <li key={category}>• {categoryLabels[category]}</li>)}
-              </ul>
-            </>
-          ) : purchaseEntries.length ? (
-            <>
-              <p className="mt-3 leading-7 text-[#65766a]">Para alcançar a estimativa de builds, o plano encontrou estas quantidades de compra:</p>
-              <ul className="mt-4 space-y-2 text-sm text-[#53675a]">
-                {purchaseEntries.map(({ category, quantity }) => <li key={category} className="flex justify-between gap-4"><span>{categoryLabels[category]}</span><strong className="text-[#153b2a]">{quantity} un.</strong></li>)}
-              </ul>
-            </>
-          ) : (
-            <p className="mt-3 leading-7 text-[#65766a]">{capacity.buildsWithPurchases === null
-              ? "Cadastre uma opção de cada categoria essencial e mantenha ao menos uma unidade disponível para calcular um cenário de compra."
-              : "As especificações das opções cadastradas não formaram uma combinação validada para este cenário."}</p>
-          )}
-        </section>
-      </div>
+      <section className="mt-6 rounded-3xl border border-[#dce6d8] bg-white p-5 shadow-sm sm:p-7">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-sm font-semibold text-[#5da52f]">Peças que mais faltam</p>
+            <h2 className="mt-1 text-xl font-semibold text-[#153b2a]">O que falta para completar mais computadores</h2>
+          </div>
+          <p className="text-sm text-[#718276]">{inventory.availableQuantity} unidades disponíveis no estoque</p>
+        </div>
+        {displayedShortages.length ? (
+          <ol className="mt-5 divide-y divide-[#edf1ea]">
+            {displayedShortages.map(({ category, count, candidates }) => (
+              <li key={category} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                <div>
+                  <p className="font-semibold text-[#294333]">{categoryLabels[category]} <span className="font-normal text-[#718276]">· falta 1 em {count} montagem(ns)</span></p>
+                  {candidates.length ? (
+                    <ul className="mt-2 space-y-1 text-sm text-[#718276]">
+                      {candidates.slice(0, 3).map((candidate, index) => <li key={`${candidate.label}-${index}`}>{candidate.label} · {candidate.available} disponível(is)</li>)}
+                    </ul>
+                  ) : <p className="mt-1 text-sm text-[#8d493f]">Nenhuma peça desta categoria está cadastrada no catálogo.</p>}
+                </div>
+                <span className="w-fit rounded-full bg-[#eef5e9] px-3 py-1 text-sm font-semibold text-[#315b3c]">{count} PC(s)</span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="mt-4 rounded-xl bg-[#f5f7f2] p-4 text-sm leading-6 text-[#65766a]">Não há conjuntos compatíveis a uma peça de completar. Verifique as quantidades disponíveis, os dados técnicos das peças ou cadastre componentes das categorias essenciais.</p>
+        )}
+        {capacity.missingCatalogCategories.length ? <p className="mt-4 border-t border-[#edf1ea] pt-4 text-sm leading-6 text-[#8d493f]">Categorias essenciais ainda sem peças cadastradas: {capacity.missingCatalogCategories.map((category) => categoryLabels[category]).join(", ")}.</p> : null}
+      </section>
 
       <aside className="mt-6 rounded-2xl border border-[#e7dfc4] bg-[#fffdf5] p-5 text-sm leading-6 text-[#6d613a]">
-        <h2 className="font-semibold text-[#514a30]">Como interpretar a estimativa</h2>
-        <p className="mt-2">O cenário de compra reutiliza as opções de componentes já cadastradas e calcula quantidades adicionais para elas. Não considera preço, disponibilidade de fornecedores nem preferências de desempenho. Resultados com dados técnicos incompletos são tratados como incertos e não entram nas combinações confirmadas.</p>
-        {capacity.uncertainCombinations > 0 ? <p className="mt-2">{capacity.uncertainCombinations} combinação(ões) candidata(s) ficou(aram) sem validação por falta de especificações.</p> : null}
-        {capacity.searchLimitReached ? <p className="mt-2">A busca atingiu o limite de combinações analisadas; os números são uma estimativa e podem estar abaixo do máximo real.</p> : null}
-        {!capacity.searchExact && !capacity.searchLimitReached ? <p className="mt-2">O cálculo encontrou uma solução viável, mas não conseguiu provar que ela é o máximo possível.</p> : null}
-        <p className="mt-2">{capacity.searchExact ? "Busca concluída sem atingir os limites computacionais." : "A estimativa pode mudar conforme o catálogo e as especificações forem atualizados."}</p>
+        <h2 className="font-semibold text-[#514a30]">Como o cálculo funciona</h2>
+        <p className="mt-2">Cada unidade física é contada uma única vez. Primeiro, o cálculo separa as peças usadas nos computadores completos; depois, procura conjuntos restantes que precisem de exatamente uma peça essencial. Compatibilidades impossíveis são descartadas. Dados ausentes são tratados como não confirmados e não entram na contagem de computadores completos.</p>
+        {capacity.uncertainCombinations > 0 ? <p className="mt-2">{capacity.uncertainCombinations} combinação(ões) candidata(s) completa(s) não puderam ser confirmadas por falta de especificações.</p> : null}
+        {capacity.searchLimitReached ? <p className="mt-2">O catálogo ultrapassou o limite de combinações analisadas; os valores podem estar abaixo do máximo real.</p> : null}
+        {!capacity.searchExact && !capacity.searchLimitReached ? <p className="mt-2">A busca encontrou combinações viáveis, mas não conseguiu provar que esse é o máximo possível.</p> : null}
       </aside>
     </div>
   );

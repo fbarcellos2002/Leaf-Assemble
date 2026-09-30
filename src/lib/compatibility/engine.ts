@@ -28,6 +28,17 @@ const stringsValue = (value: unknown) =>
     ? value as string[]
     : undefined;
 const normalized = (value: string) => value.trim().toLocaleLowerCase("pt-BR");
+export function storageInterfaceSupported(storageInterface: string, supportedInterfaces: string[]) {
+  const requested = normalized(storageInterface);
+  return supportedInterfaces.some((item) => {
+    const supported = normalized(item);
+    if (requested === supported) return true;
+    const requestedNvme = requested.includes("nvme");
+    const supportedNvme = supported.includes("nvme");
+    if (requestedNvme && supportedNvme) return true;
+    return requested.includes("sata") && supported.includes("sata");
+  });
+}
 
 function result(
   status: CompatibilityStatus,
@@ -112,16 +123,6 @@ function ramMotherboard(rams: CompatibilityPart[], board: CompatibilityPart) {
       results.push(result("unknown", "Frequência da RAM ou suporte da placa-mãe não informado.", [ram, board]));
     }
 
-    const ecc = ram.specs.ecc;
-    const eccSupport = board.specs.eccSupport;
-    if (typeof ecc === "boolean" && typeof eccSupport === "boolean") {
-      if (ecc && !eccSupport) results.push(result("incompatible", "RAM ECC não é suportada pela placa-mãe.", [ram, board]));
-    } else {
-      results.push(result("unknown", "Suporte ECC não informado em um dos componentes.", [ram, board]));
-    }
-    if (ram.specs.registered === true && eccSupport !== true) {
-      results.push(result("incompatible", "Memória registered exige suporte compatível da placa-mãe.", [ram, board]));
-    }
   }
 
   if (slots === undefined || maxGb === undefined) {
@@ -154,28 +155,15 @@ function coolerSocket(cooler: CompatibilityPart, target: CompatibilityPart) {
   return result("compatible", "O cooler suporta o socket selecionado.", [cooler, target], socket);
 }
 
-function coolerThermal(cooler: CompatibilityPart, cpu: CompatibilityPart) {
-  const coolerRating = numberValue(cooler.specs.tdpRatingW);
-  const cpuTdp = numberValue(cpu.specs.tdpW);
-  if (coolerRating === undefined || cpuTdp === undefined) {
-    return result("unknown", "TDP do processador ou capacidade do cooler não informado.", [cooler, cpu]);
-  }
-  if (coolerRating < cpuTdp) {
-    return result("warning", "O cooler tem capacidade térmica inferior ao TDP nominal da CPU.", [cooler, cpu], `${coolerRating} W para CPU de ${cpuTdp} W`);
-  }
-  return result("compatible", "A capacidade térmica do cooler atende ao TDP nominal da CPU.", [cooler, cpu]);
-}
-
 function gpuMotherboard(gpu: CompatibilityPart, board: CompatibilityPart) {
-  const gpuInterface = textValue(gpu.specs.interface);
   const slots = numberValue(board.specs.pcieSlots);
-  if (!gpuInterface || slots === undefined) {
-    return result("unknown", "Interface da GPU ou slots PCIe não informados.", [gpu, board]);
+  if (slots === undefined) {
+    return result("unknown", "Quantidade de slots PCIe da placa-mãe não informada.", [gpu, board]);
   }
-  if (!/pcie|pci express/i.test(gpuInterface) || slots < 1) {
-    return result("incompatible", "A placa-mãe não informa um slot compatível com a GPU.", [gpu, board], `${gpuInterface}; ${slots} slots PCIe`);
+  if (slots < 1) {
+    return result("incompatible", "A placa-mãe não informa um slot PCIe para a GPU.", [gpu, board]);
   }
-  return result("compatible", "A GPU usa interface PCIe e a placa-mãe tem slot disponível.", [gpu, board]);
+  return result("compatible", "A placa-mãe tem slot PCIe para a GPU.", [gpu, board]);
 }
 
 function gpuSlotCount(gpus: CompatibilityPart[], board: CompatibilityPart) {
@@ -185,30 +173,6 @@ function gpuSlotCount(gpus: CompatibilityPart[], board: CompatibilityPart) {
     return result("incompatible", "A quantidade de GPUs excede os slots PCIe informados.", [...gpus, board], `${gpus.length} GPUs para ${slots} slots`);
   }
   return result("compatible", "A quantidade de GPUs cabe nos slots PCIe informados.", [...gpus, board]);
-}
-
-function gpuCase(gpu: CompatibilityPart, pcCase: CompatibilityPart) {
-  const length = numberValue(gpu.specs.lengthMm);
-  const limit = numberValue(pcCase.specs.gpuMaxLengthMm);
-  if (length === undefined || limit === undefined) {
-    return result("unknown", "Comprimento da GPU ou limite do gabinete não informado.", [gpu, pcCase]);
-  }
-  if (length > limit) {
-    return result("incompatible", "A GPU é maior que o espaço disponível no gabinete.", [gpu, pcCase], `${length} mm para limite de ${limit} mm`);
-  }
-  return result("compatible", "A GPU cabe no gabinete.", [gpu, pcCase], `${length} mm de ${limit} mm`);
-}
-
-function coolerCase(cooler: CompatibilityPart, pcCase: CompatibilityPart) {
-  const height = numberValue(cooler.specs.heightMm);
-  const limit = numberValue(pcCase.specs.cpuCoolerMaxHeightMm);
-  if (height === undefined || limit === undefined) {
-    return result("unknown", "Altura do cooler ou limite do gabinete não informado.", [cooler, pcCase]);
-  }
-  if (height > limit) {
-    return result("incompatible", "O cooler é mais alto que o limite do gabinete.", [cooler, pcCase], `${height} mm para limite de ${limit} mm`);
-  }
-  return result("compatible", "O cooler cabe no gabinete.", [cooler, pcCase], `${height} mm de ${limit} mm`);
 }
 
 function motherboardCase(board: CompatibilityPart, pcCase: CompatibilityPart) {
@@ -241,27 +205,10 @@ function storageMotherboard(storage: CompatibilityPart, board: CompatibilityPart
   if (!storageInterface || !supported) {
     return result("unknown", "Interface do armazenamento ou interfaces da placa-mãe não informadas.", [storage, board]);
   }
-  if (!supported.some((item) => normalized(item) === normalized(storageInterface))) {
+  if (!storageInterfaceSupported(storageInterface, supported)) {
     return result("incompatible", "A placa-mãe não informa suporte à interface do armazenamento.", [storage, board], `${storageInterface}; suporta ${supported.join(", ")}`);
   }
   return result("compatible", "A interface do armazenamento é suportada.", [storage, board], storageInterface);
-}
-
-function connectorType(value: string) {
-  const lower = normalized(value).replace(/\s/g, "");
-  if (/12v-?2x6|12v2x6/.test(lower)) return "12v-2x6";
-  if (/12vhpwr|12\+4/.test(lower)) return "12vhpwr";
-  if (/6\+2-?pin|8-?pin/.test(lower)) return "8pin";
-  if (/6-?pin/.test(lower)) return "6pin";
-  return undefined;
-}
-
-function connectorCount(items: string[], type: string) {
-  return items.reduce((sum, item) => {
-    if (connectorType(item) !== type) return sum;
-    const count = item.match(/(?:^|\s)(\d+)\s*[x×]/i);
-    return sum + (count ? Number(count[1]) : 1);
-  }, 0);
 }
 
 function powerSupply(psu: CompatibilityPart, cpu?: CompatibilityPart, gpus: CompatibilityPart[] = []) {
@@ -272,37 +219,24 @@ function powerSupply(psu: CompatibilityPart, cpu?: CompatibilityPart, gpus: Comp
   }
 
   const cpuTdp = cpu ? numberValue(cpu.specs.tdpW) : undefined;
-  const gpuTdps = gpus.map((gpu) => numberValue(gpu.specs.tdpW));
   const gpuRecommendations = gpus.map((gpu) => numberValue(gpu.specs.recommendedPsuW));
-  const hasUnknownPower = (cpu && cpuTdp === undefined) || gpuTdps.some((tdp) => tdp === undefined);
-  const estimated = cpuTdp !== undefined && gpuTdps.every((tdp): tdp is number => tdp !== undefined)
-    ? cpuTdp + gpuTdps.reduce((sum, tdp) => sum + tdp, 0) + 100
-    : undefined;
+  const hasUnknownPower = (cpu && cpuTdp === undefined);
+  const estimated = cpuTdp !== undefined ? cpuTdp + 100 : undefined;
   const maxRecommended = gpuRecommendations.length && gpuRecommendations.every((value): value is number => value !== undefined)
     ? Math.max(...gpuRecommendations)
     : undefined;
   const required = Math.max(estimated ?? 0, maxRecommended ?? 0);
 
-  const connectorSpecs = stringsValue(psu.specs.connectors);
-  const connectorNeeds = gpus.flatMap((gpu) => stringsValue(gpu.specs.powerConnectors) ?? []);
-  const connectorsUnknown = connectorNeeds.length > 0 && connectorSpecs === undefined;
-  const missingConnector = connectorSpecs && connectorNeeds.find((need) => {
-    const type = connectorType(need);
-    return !type || connectorCount(connectorSpecs, type) < (Number(need.match(/^(\d+)\s*[x×]/i)?.[1]) || 1);
-  });
-  if (missingConnector) {
-    return result("incompatible", "A fonte não informa os conectores necessários para a GPU.", components, missingConnector);
-  }
   if (required > 0 && wattage < required) {
     return result("incompatible", "A potência da fonte é inferior ao requisito estimado.", components, `${wattage} W disponíveis; pelo menos ${Math.ceil(required)} W necessários`);
   }
-  if (connectorsUnknown || hasUnknownPower || estimated === undefined || maxRecommended === undefined && gpus.length > 0) {
-    return result("unknown", "Faltam dados de potência ou conectores para validar a fonte com segurança.", components);
+  if (hasUnknownPower || estimated === undefined || maxRecommended === undefined && gpus.length > 0) {
+    return result("unknown", "Faltam dados de potência para validar a fonte com segurança.", components);
   }
   if (required > 0 && wattage < required * 1.2) {
     return result("warning", "A fonte está próxima do limite estimado do sistema.", components, `${wattage} W para requisito de ${Math.ceil(required)} W`);
   }
-  return result("compatible", "Potência e conectores da fonte atendem aos componentes informados.", components, `${wattage} W`);
+  return result("compatible", "A potência da fonte atende aos componentes informados.", components, `${wattage} W`);
 }
 
 function ramCombination(rams: CompatibilityPart[]) {
@@ -340,17 +274,14 @@ export function evaluateCompatibility(parts: CompatibilityPart[]) {
   for (const cooler of coolers) {
     for (const cpu of cpus) {
       checks.push(coolerSocket(cooler, cpu));
-      checks.push(coolerThermal(cooler, cpu));
     }
     for (const board of boards) checks.push(coolerSocket(cooler, board));
   }
   for (const gpu of gpus) {
     for (const board of boards) checks.push(gpuMotherboard(gpu, board));
-    for (const pcCase of cases) checks.push(gpuCase(gpu, pcCase));
   }
   for (const board of boards) if (gpus.length) checks.push(gpuSlotCount(gpus, board));
   for (const board of boards) for (const pcCase of cases) checks.push(motherboardCase(board, pcCase));
-  for (const cooler of coolers) for (const pcCase of cases) checks.push(coolerCase(cooler, pcCase));
   for (const psu of psus) for (const pcCase of cases) checks.push(psuCase(psu, pcCase));
   for (const storage of storages) for (const board of boards) checks.push(storageMotherboard(storage, board));
   for (const psu of psus) checks.push(powerSupply(psu, cpus[0], gpus));

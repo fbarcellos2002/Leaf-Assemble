@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
-import { evaluateCompatibility, type CompatibilityPart, type CompatibilityStatus } from "@/lib/compatibility/engine";
+import { evaluateCompatibility, storageInterfaceSupported, type CompatibilityPart, type CompatibilityStatus } from "@/lib/compatibility/engine";
 import { componentCategorySchema } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,14 +12,14 @@ import { cancelBuild, completeBuild, updateBuild } from "../actions";
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string }> };
 
 const categories = [
-  { slot: "cpu", category: "CPU", label: "Processador" },
   { slot: "motherboard", category: "MOTHERBOARD", label: "Placa-mãe" },
+  { slot: "cpu", category: "CPU", label: "Processador" },
   ...Array.from({ length: 4 }, (_, index) => ({ slot: `ram-${index + 1}`, category: "RAM", label: `Memória ${index + 1}` })),
-  ...Array.from({ length: 2 }, (_, index) => ({ slot: `gpu-${index + 1}`, category: "GPU", label: `GPU · PCI Express ${index + 1}` })),
   ...Array.from({ length: 3 }, (_, index) => ({ slot: `storage-${index + 1}`, category: "STORAGE", label: `SSD / HDD · Baia ${index + 1}` })),
+  ...Array.from({ length: 2 }, (_, index) => ({ slot: `gpu-${index + 1}`, category: "GPU", label: `GPU · PCI Express ${index + 1}` })),
+  { slot: "cpu_cooler", category: "CPU_COOLER", label: "Cooler do processador" },
   { slot: "psu", category: "PSU", label: "Fonte" },
   { slot: "case", category: "CASE", label: "Gabinete" },
-  { slot: "cpu_cooler", category: "CPU_COOLER", label: "Cooler do processador" },
 ];
 
 const statusLabels: Record<CompatibilityStatus, string> = {
@@ -44,6 +44,7 @@ const errorMessages: Record<string, string> = {
   "release-failed": "Não foi possível liberar essa reserva.",
   "cancel-failed": "Não foi possível cancelar o build.",
   "complete-failed": "O build ainda está incompleto, incompatível ou sem confirmação.",
+  "missing-prerequisite": "Escolha primeiro uma placa-mãe compatível e, para RAM ou cooler, um processador compatível.",
   "update-failed": "Não foi possível salvar o nome e as observações do computador.",
 };
 
@@ -95,13 +96,24 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
   const compatibility = evaluateCompatibility(selectedParts);
   const cpuPart = selectedParts.find((part) => part.category === "CPU");
   const motherboardPart = selectedParts.find((part) => part.category === "MOTHERBOARD");
+  const platformReady = Boolean(cpuPart && motherboardPart)
+    && evaluateCompatibility([cpuPart!, motherboardPart!]).status === "compatible";
   const boardStorageInterfaces = motherboardPart?.specs.storageInterfaces;
   const motherboardHasM2 = Array.isArray(boardStorageInterfaces)
     && boardStorageInterfaces.some((item) => typeof item === "string" && item.toLocaleLowerCase("pt-BR").includes("m.2"));
   const m2AlreadySelected = itemsBySlot.has("storage-4");
-  const buildSlots = categories.flatMap((slot) => slot.slot === "storage-3" && (motherboardHasM2 || m2AlreadySelected)
+  const buildSlots = categories.filter(({ slot }) => {
+    if (slot === "motherboard") return true;
+    if (slot === "cpu" || slot === "case" || slot === "psu") return Boolean(motherboardPart) || itemsBySlot.has(slot);
+    if (slot.startsWith("ram-") || slot === "cpu_cooler") return platformReady || itemsBySlot.has(slot);
+    if (slot.startsWith("gpu-") || slot.startsWith("storage-")) return platformReady || itemsBySlot.has(slot);
+    return false;
+  }).flatMap((slot) => slot.slot === "storage-3" && (motherboardHasM2 || m2AlreadySelected)
     ? [slot, { slot: "storage-4", category: "STORAGE", label: "SSD M.2" }]
     : [slot]);
+  if (m2AlreadySelected && !buildSlots.some((slot) => slot.slot === "storage-4")) {
+    buildSlots.push({ slot: "storage-4", category: "STORAGE", label: "SSD M.2" });
+  }
   const gpuRequired = Boolean(cpuPart && cpuPart.specs.integratedGraphics !== true);
   const canEdit = build.status !== "COMPLETED" && build.status !== "CANCELLED";
   const completeReady = build.status === "READY";
@@ -124,10 +136,22 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
         const formFactor = typeof specs.formFactor === "string" ? specs.formFactor.toLocaleLowerCase("pt-BR") : "";
         const storageInterface = typeof specs.interface === "string" ? specs.interface.toLocaleLowerCase("pt-BR") : "";
         const supportedInterfaces = Array.isArray(boardStorageInterfaces)
-          ? boardStorageInterfaces.filter((item): item is string => typeof item === "string").map((item) => item.toLocaleLowerCase("pt-BR"))
+          ? boardStorageInterfaces.filter((item): item is string => typeof item === "string")
           : [];
-        if (!motherboardHasM2 || !formFactor.startsWith("m.2") || !supportedInterfaces.includes(storageInterface)) return [];
+        if (!motherboardHasM2 || !formFactor.startsWith("m.2") || !storageInterfaceSupported(storageInterface, supportedInterfaces)) return [];
       }
+      const candidate = {
+        id: part.id,
+        category: componentCategorySchema.parse(part.category),
+        manufacturer: part.manufacturer,
+        name: part.name,
+        model: part.model,
+        description: part.description,
+        specs,
+      } satisfies CompatibilityPart;
+      if (slot === "cpu" && motherboardPart
+        && evaluateCompatibility([candidate, motherboardPart]).status !== "compatible") return [];
+      if (evaluateCompatibility([...selectedParts, candidate]).status === "incompatible") return [];
       const lots = Array.isArray(part.component_lots) ? part.component_lots : [];
       return lots.filter((lot) => lot.available_quantity > 0).map((lot) => ({
         selection: `${part.id}~${lot.id}`,
