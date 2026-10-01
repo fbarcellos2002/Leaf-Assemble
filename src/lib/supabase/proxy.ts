@@ -45,7 +45,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (hasUser && isPublicPath) {
+  if (hasUser && isPublicPath && pathname !== "/auth/signout") {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
