@@ -179,8 +179,7 @@ export async function addBuildComponent(formData: FormData) {
   const requiresPlatform = candidatePart.category === "CPU"
     || candidatePart.category === "RAM"
     || candidatePart.category === "CPU_COOLER"
-    || candidatePart.category === "GPU"
-    || candidatePart.category === "STORAGE";
+    || candidatePart.category === "GPU";
   if (requiresPlatform && !selectedBoard) redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);
   if ((candidatePart.category === "RAM" || candidatePart.category === "CPU_COOLER") && !selectedCpu) {
     redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);

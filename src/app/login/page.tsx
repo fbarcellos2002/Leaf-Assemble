@@ -2,6 +2,7 @@ import Image from "next/image";
 
 import { signIn } from "./actions";
 import { ClearSessionActivity } from "./clear-session-activity";
+import { LoginForm } from "./login-form";
 
 type LoginPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -13,6 +14,7 @@ const messages: Record<string, string> = {
   setup: "A conexão com o Supabase ainda não foi configurada neste ambiente.",
   inactive: "Esta conta está inativa. Peça ajuda a um administrador.",
   "session-timeout": "Você foi desconectado após 30 minutos sem atividade.",
+  "session-closed": "Sua sessão foi encerrada porque a página foi fechada. Entre novamente.",
   forbidden: "Seu perfil não tem permissão para acessar essa área.",
 };
 
@@ -59,36 +61,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </p>
         ) : null}
 
-        <form action={signIn} className="mt-7 space-y-5">
-          <label className="block space-y-2 text-left text-sm font-medium text-[#294333]">
-            E-mail
-            <input
-              autoComplete="email"
-              className="h-12 w-full min-w-0 rounded-xl border border-[#d4e0d0] bg-white px-4 text-base text-[#16271e] outline-none transition placeholder:text-[#9aa79c] focus:border-[#5da52f] focus:ring-4 focus:ring-[#5da52f]/10"
-              name="email"
-              placeholder="voce@exemplo.com"
-              required
-              type="email"
-            />
-          </label>
-          <label className="block space-y-2 text-left text-sm font-medium text-[#294333]">
-            Senha
-            <input
-              autoComplete="current-password"
-              className="h-12 w-full min-w-0 rounded-xl border border-[#d4e0d0] bg-white px-4 text-base text-[#16271e] outline-none transition placeholder:text-[#9aa79c] focus:border-[#5da52f] focus:ring-4 focus:ring-[#5da52f]/10"
-              name="password"
-              placeholder="Sua senha"
-              required
-              type="password"
-            />
-          </label>
-          <button
-            className="flex h-12 w-full items-center justify-center rounded-xl bg-[#2f713b] px-5 font-semibold text-white shadow-sm transition hover:bg-[#255f31] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5da52f]"
-            type="submit"
-          >
-            Entrar
-          </button>
-        </form>
+        <LoginForm action={signIn} />
       </section>
     </main>
   );

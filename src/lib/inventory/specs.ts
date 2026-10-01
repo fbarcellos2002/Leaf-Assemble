@@ -105,7 +105,7 @@ export type SpecField = {
 
 export const specFields: Record<ComponentCategory, SpecField[]> = {
   CPU: [
-    { key: "socket", label: "Socket", type: "text", hint: "Ex.: LGA 1155, AM4" },
+    { key: "socket", label: "Socket", type: "text", hint: "Informe apenas o número do socket" },
     { key: "cores", label: "Núcleos", type: "number" },
     { key: "threads", label: "Threads", type: "number" },
     { key: "baseClockMhz", label: "Clock base", type: "number", unit: "MHz" },
@@ -117,7 +117,7 @@ export const specFields: Record<ComponentCategory, SpecField[]> = {
     { key: "maxMemoryCapacityGb", label: "Memória máxima", type: "number", unit: "GB" },
   ],
   MOTHERBOARD: [
-    { key: "socket", label: "Socket", type: "text", hint: "Ex.: LGA 1155, AM4" },
+    { key: "socket", label: "Socket", type: "text", hint: "Informe apenas o número do socket" },
     { key: "pcieVersion", label: "Versão PCI Express", type: "text", hint: "Ex.: PCIe 4.0" },
     { key: "chipset", label: "Chipset", type: "text" },
     { key: "formFactor", label: "Formato", type: "text", hint: "Ex.: ATX, Micro-ATX" },

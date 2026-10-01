@@ -46,8 +46,15 @@ export function ComponentForm({ action }: Props) {
 
   function updateMotherboardSocket(platform: "Intel" | "AMD" | "", model: string) {
     const prefix = platform === "Intel" ? "LGA" : platform === "AMD" ? "AM" : "";
-    const socket = prefix && model.trim() ? `${prefix} ${model.trim()}` : "";
+    const digits = model.replace(/\D/g, "");
+    const socket = prefix && digits ? `${prefix} ${digits}` : "";
     updateSpecValue("socket", socket);
+  }
+
+  function updateCpuSocket(value: string) {
+    const digits = value.replace(/\D/g, "");
+    const prefix = manufacturer === "Intel" ? "LGA" : manufacturer === "AMD" ? "AM" : "";
+    updateSpecValue("socket", prefix && digits ? `${prefix} ${digits}` : "");
   }
 
   const previewSpecs: Record<string, unknown> = {};
@@ -67,9 +74,7 @@ export function ComponentForm({ action }: Props) {
     const value = specValues[field.key] ?? "";
     const options = specChoices[category]?.[field.key];
     const listField = field.type === "text-list" || field.type === "number-list";
-    const placeholder = category === "CPU" && field.key === "socket"
-      ? manufacturer === "Intel" ? "Ex.: LGA 1155" : manufacturer === "AMD" ? "Ex.: AM4" : field.hint
-      : field.hint;
+    const placeholder = field.hint;
     if (field.type === "boolean") {
       return (
         <select className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal" name={`spec_${field.key}`} aria-label={field.label} value={value} onChange={(event) => updateSpecValue(field.key, event.target.value)}>
@@ -77,6 +82,29 @@ export function ComponentForm({ action }: Props) {
           <option value="true">Sim</option>
           <option value="false">Não</option>
         </select>
+      );
+    }
+
+    if (category === "CPU" && field.key === "socket") {
+      const prefix = manufacturer === "Intel" ? "LGA" : manufacturer === "AMD" ? "AM" : "";
+      const numericValue = value.replace(/\D/g, "");
+      return (
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+          <span className="flex h-12 min-w-16 items-center justify-center rounded-xl border border-[#d9e2d8] bg-[#f7f9f5] px-3 font-semibold text-[#315b3c]" aria-label="Prefixo do socket">{prefix || "—"}</span>
+          <input
+            className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal"
+            aria-label="Número do socket"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={5}
+            placeholder={prefix ? "Somente números" : "Selecione Intel ou AMD primeiro"}
+            value={numericValue}
+            disabled={!prefix}
+            onChange={(event) => updateCpuSocket(event.target.value)}
+          />
+          <input type="hidden" name={`spec_${field.key}`} value={value} />
+        </div>
       );
     }
 
@@ -99,15 +127,21 @@ export function ComponentForm({ action }: Props) {
             <option value="AMD">AMD (AM)</option>
           </select>
           <label className="grid gap-2 text-sm font-normal text-[#718276]">
-            Modelo do socket{prefix ? ` (${prefix})` : ""}
+            Número do socket{prefix ? ` (${prefix})` : ""}
             <input
               className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal text-[#294333]"
-              aria-label="Modelo do socket"
-              placeholder={prefix === "LGA" ? "Ex.: 1155" : prefix === "AM" ? "Ex.: 4 ou 5" : "Selecione Intel ou AMD primeiro"}
-              value={socketModel}
+              aria-label="Número do socket"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={5}
+              placeholder={prefix ? "Somente números" : "Selecione Intel ou AMD primeiro"}
+              value={socketModel.replace(/\D/g, "")}
+              disabled={!prefix}
               onChange={(event) => {
-                setSocketModel(event.target.value);
-                updateMotherboardSocket(socketPlatform, event.target.value);
+                const digits = event.target.value.replace(/\D/g, "");
+                setSocketModel(digits);
+                updateMotherboardSocket(socketPlatform, digits);
               }}
             />
           </label>
@@ -201,7 +235,10 @@ export function ComponentForm({ action }: Props) {
           <label className="grid gap-2 text-sm font-medium text-[#294333]">
             Fabricante
             {manufacturerChoices[category] ? (
-              <select className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal" name="manufacturer" required value={manufacturer} onChange={(event) => setManufacturer(event.target.value)}>
+              <select className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal" name="manufacturer" required value={manufacturer} onChange={(event) => {
+                setManufacturer(event.target.value);
+                if (category === "CPU") updateSpecValue("socket", "");
+              }}>
                 <option value="">Selecione o fabricante</option>
                 {manufacturerChoices[category]?.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>

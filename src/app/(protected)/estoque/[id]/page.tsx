@@ -24,6 +24,12 @@ const categoryLabels: Record<string, string> = {
   CPU_COOLER: "Cooler do processador",
 };
 
+const processorReference = (manufacturer: string) => {
+  if (manufacturer === "Intel") return { label: "Intel ARK", href: "https://www.intel.com/content/www/us/en/ark.html" };
+  if (manufacturer === "AMD") return { label: "Catálogo de processadores AMD", href: "https://www.amd.com/en/products/specifications/processors.html" };
+  return null;
+};
+
 function formatSpec(value: unknown) {
   if (typeof value === "boolean") return value ? "Sim" : "Não";
   if (Array.isArray(value)) return value.join(", ");
@@ -51,7 +57,9 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
   const specs = component.specs && typeof component.specs === "object" && !Array.isArray(component.specs)
     ? component.specs as Record<string, unknown>
     : {};
-  const category = componentCategorySchema.parse(component.category);
+  const categoryResult = componentCategorySchema.safeParse(component.category);
+  if (!categoryResult.success) notFound();
+  const category = categoryResult.data;
   const activeFields = specFields[category];
   const activeSpecKeys = new Set(activeFields.map((field) => field.key));
   const visibleSpecs = Object.entries(specs).filter(([key]) => activeSpecKeys.has(key));
@@ -64,6 +72,14 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
           <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#153b2a] sm:text-4xl">{component.description || component.name || `${component.manufacturer} ${component.model}`}</h1>
         </div>
       </div>
+
+      {category === "CPU" && processorReference(component.manufacturer) ? (
+        <p className="mt-3 text-sm">
+          <a className="font-medium text-[#4b7b3b] hover:underline" href={processorReference(component.manufacturer)!.href} target="_blank" rel="noreferrer">
+            Consultar {processorReference(component.manufacturer)!.label} ↗
+          </a>
+        </p>
+      ) : null}
 
       {query.error ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível alterar o estoque. Confira a quantidade e as unidades disponíveis.</p> : null}
       {query.notice === "created" ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">Componente cadastrado.</p> : null}

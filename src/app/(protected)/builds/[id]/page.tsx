@@ -105,9 +105,10 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
   const m2AlreadySelected = itemsBySlot.has("storage-4");
   const buildSlots = categories.filter(({ slot }) => {
     if (slot === "motherboard") return true;
-    if (slot === "cpu" || slot === "case" || slot === "psu") return Boolean(motherboardPart) || itemsBySlot.has(slot);
+    if (slot === "case" || slot === "psu" || slot.startsWith("storage-")) return true;
+    if (slot === "cpu") return Boolean(motherboardPart) || itemsBySlot.has(slot);
     if (slot.startsWith("ram-") || slot === "cpu_cooler") return platformReady || itemsBySlot.has(slot);
-    if (slot.startsWith("gpu-") || slot.startsWith("storage-")) return platformReady || itemsBySlot.has(slot);
+    if (slot.startsWith("gpu-")) return platformReady || itemsBySlot.has(slot);
     return false;
   }).flatMap((slot) => slot.slot === "storage-3" && (motherboardHasM2 || m2AlreadySelected)
     ? [slot, { slot: "storage-4", category: "STORAGE", label: "SSD M.2" }]

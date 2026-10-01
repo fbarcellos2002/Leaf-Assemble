@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 const idleTimeoutMs = 30 * 60 * 1000;
 const activityKeyPrefix = "leaf-assemble:last-activity:";
+const tabSessionKey = "leaf-assemble:tab-session";
 
 export function SessionInactivityTimeout({ authUserId }: { authUserId: string }) {
   const router = useRouter();
@@ -47,6 +48,11 @@ export function SessionInactivityTimeout({ authUserId }: { authUserId: string })
         return;
       }
       signOutIfIdle();
+    }
+
+    if (!window.sessionStorage.getItem(tabSessionKey)) {
+      router.replace("/auth/signout?reason=closed");
+      return;
     }
 
     if (!window.localStorage.getItem(key)) {

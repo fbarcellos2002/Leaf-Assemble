@@ -47,6 +47,16 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
     const value = parseSpecFormValue(field, formData.get(`spec_${field.key}`));
     if (value !== undefined) rawSpecs[field.key] = value;
   }
+  if ((category.data === "CPU" || category.data === "MOTHERBOARD") && typeof rawSpecs.socket === "string") {
+    const match = /^(LGA|AM)\s*(\d+)$/i.exec(rawSpecs.socket.trim());
+    if (!match) return { error: "invalid-specs" };
+    const prefix = match[1].toUpperCase();
+    if (category.data === "CPU") {
+      const expectedPrefix = fields.data.manufacturer === "Intel" ? "LGA" : fields.data.manufacturer === "AMD" ? "AM" : null;
+      if (!expectedPrefix || prefix !== expectedPrefix) return { error: "invalid-specs" };
+    }
+    rawSpecs.socket = `${prefix} ${match[2]}`;
+  }
   const specs = parseComponentSpecs(category.data, rawSpecs);
   if (!specs.success) return { error: "invalid-specs" };
   const description = generateComponentDescription(

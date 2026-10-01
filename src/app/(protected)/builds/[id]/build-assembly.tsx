@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 
 import { addBuildComponent, releaseBuildComponent } from "../actions";
 
@@ -44,6 +45,15 @@ const statusLabels: Record<string, string> = {
   incompatible: "Incompatível",
   unknown: "Dados insuficientes",
 };
+
+function ReserveButton({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button className="h-11 w-full rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138] disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={disabled || pending}>
+      {pending ? "Reservando…" : "Reservar componente"}
+    </button>
+  );
+}
 
 function CaseIllustration({
   slots,
@@ -213,7 +223,7 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
                   {options.map((option) => <option key={option.selection} value={option.selection}>{option.label}</option>)}
                 </select>
               </label>
-              <button className="h-11 w-full rounded-xl bg-[#153b2a] px-4 font-semibold text-white hover:bg-[#205138] disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!selectedOption}>Reservar componente</button>
+              <ReserveButton disabled={!selectedOption} />
             </form> : null}
 
             {activePart && !canEdit ? <p className="mt-4 text-xs text-[#718276]">A montagem está encerrada e não pode mais ser alterada.</p> : null}

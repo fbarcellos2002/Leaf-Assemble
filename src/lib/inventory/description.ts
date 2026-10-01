@@ -22,7 +22,13 @@ function list(specs: Specs, key: string) {
 function summary(category: ComponentCategory, specs: Specs) {
   switch (category) {
     case "CPU":
-      return [number(specs, "cores", "núcleos"), number(specs, "threads", "threads")];
+      return [
+        [
+          typeof specs.cores === "number" && Number.isFinite(specs.cores) ? `${specs.cores}N` : undefined,
+          typeof specs.threads === "number" && Number.isFinite(specs.threads) ? `${specs.threads}T` : undefined,
+        ].filter(Boolean).join(" ") || undefined,
+        text(specs, "socket"),
+      ];
     case "MOTHERBOARD":
       return [text(specs, "socket")];
     case "RAM":
