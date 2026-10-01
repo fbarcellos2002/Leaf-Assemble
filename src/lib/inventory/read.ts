@@ -12,23 +12,27 @@ export const loadInventorySnapshot = cache(async () => {
     .select("id, category, manufacturer, name, model, description, specs, component_lots(id, lot_code, quantity_total, available_quantity, reserved_quantity, used_quantity)")
     .order("manufacturer");
 
-  const components = (data ?? []).map((component) => ({
-    id: component.id,
-    category: componentCategorySchema.parse(component.category),
-    manufacturer: component.manufacturer,
-    name: component.name,
-    model: component.model,
-    description: component.description,
-    specs: component.specs,
-    lots: (component.component_lots ?? []).map((lot) => ({
-      id: lot.id,
-      lotCode: lot.lot_code ?? null,
-      available: lot.available_quantity,
-      total: lot.quantity_total,
-      reserved: lot.reserved_quantity,
-      used: lot.used_quantity,
-    })),
-  }));
+  const components = (data ?? []).flatMap((component) => {
+    const category = componentCategorySchema.safeParse(component.category);
+    if (!category.success) return [];
+    return [{
+      id: component.id,
+      category: category.data,
+      manufacturer: component.manufacturer,
+      name: component.name,
+      model: component.model,
+      description: component.description,
+      specs: component.specs,
+      lots: (component.component_lots ?? []).map((lot) => ({
+        id: lot.id,
+        lotCode: lot.lot_code ?? null,
+        available: lot.available_quantity,
+        total: lot.quantity_total,
+        reserved: lot.reserved_quantity,
+        used: lot.used_quantity,
+      })),
+    }];
+  });
 
   const totalQuantity = components.reduce((sum, component) => sum + component.lots.reduce((lots, lot) => lots + lot.total, 0), 0);
   const availableQuantity = components.reduce((sum, component) => sum + component.lots.reduce((lots, lot) => lots + lot.available, 0), 0);

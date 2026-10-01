@@ -83,10 +83,12 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
       specs: unknown;
     } | null;
     if (!component || Array.isArray(component)) return [];
+    const componentCategory = componentCategorySchema.safeParse(component.category);
+    if (!componentCategory.success) return [];
     return [{
       id: component.id,
       lotId: item.lot_id,
-      category: componentCategorySchema.parse(component.category),
+      category: componentCategory.data,
       manufacturer: component.manufacturer,
       name: component.name,
       model: component.model,
@@ -139,6 +141,8 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
   const optionsBySlot: Record<string, AssemblyOption[]> = Object.fromEntries(buildSlots.map(({ slot, category }) => [
     slot,
     (inventory ?? []).filter((part) => part.category === category).flatMap((part) => {
+      const partCategory = componentCategorySchema.safeParse(part.category);
+      if (!partCategory.success) return [];
       const specs = asRecord(part.specs);
       if (slot === "storage-4") {
         const formFactor = typeof specs.formFactor === "string" ? specs.formFactor.toLocaleLowerCase("pt-BR") : "";
@@ -150,7 +154,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
       }
       const candidate = {
         id: part.id,
-        category: componentCategorySchema.parse(part.category),
+        category: partCategory.data,
         manufacturer: part.manufacturer,
         name: part.name,
         model: part.model,

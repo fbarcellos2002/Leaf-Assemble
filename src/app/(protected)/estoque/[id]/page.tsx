@@ -141,7 +141,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
                       <form action={removeStock} className="flex items-center gap-2">
                         <input type="hidden" name="componentId" value={component.id} />
                         <input type="hidden" name="lotId" value={lot.id} />
-                        <input className="h-9 w-20 rounded-lg border border-[#d9e2d8] px-2 text-sm" type="number" name="quantity" min="1" max={lot.available_quantity} required onWheel={(event) => event.currentTarget.blur()} aria-label={`Quantidade a remover de ${lot.lot_code || "lote sem identificação"}`} />
+                        <input className="h-9 w-20 rounded-lg border border-[#d9e2d8] px-2 text-sm" type="number" name="quantity" min="1" max={lot.available_quantity} required aria-label={`Quantidade a remover de ${lot.lot_code || "lote sem identificação"}`} />
                         <button className="h-9 rounded-lg border border-[#d9d0cc] px-3 text-sm font-semibold text-[#8d493f] hover:bg-[#fff5f3]" type="submit">Remover</button>
                       </form>
                     ) : <span className="text-xs text-[#89958d]">—</span>}
@@ -155,7 +155,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
         {profile.role === "ADMIN" ? (
           <form action={receiveStock} className="mt-7 grid grid-cols-1 gap-3 border-t border-[#e7ede4] pt-6">
             <input type="hidden" name="componentId" value={component.id} />
-            <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Quantidade recebida<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="quantity" type="number" min="1" max="100000" required onWheel={(event) => event.currentTarget.blur()} /></label>
+            <label className="grid gap-2 text-xs font-semibold tracking-wide text-[#718276] uppercase">Quantidade recebida<input className="h-11 rounded-xl border border-[#d9e2d8] px-3 text-sm font-normal normal-case tracking-normal" name="quantity" type="number" min="1" max="100000" required /></label>
             <input className="peer size-4 self-end accent-[#315b3c]" id="receive-stock-details" type="checkbox" />
             <label className="self-end pb-2 text-sm font-medium text-[#294333]" htmlFor="receive-stock-details">Informar lote ou observações</label>
             <div className="hidden grid-cols-1 gap-3 peer-checked:grid">
