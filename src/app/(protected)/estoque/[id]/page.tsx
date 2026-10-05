@@ -7,6 +7,7 @@ import { componentCategorySchema, specFields } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
 import { receiveStock, removeStock } from "../actions";
+import { RemoveStockForm } from "../remove-stock-form";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -138,12 +139,13 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
                   <td className="py-3 text-[#607266]">{lot.used_quantity}</td>
                   {profile.role === "ADMIN" ? <td className="py-2 pl-2">
                     {lot.available_quantity > 0 ? (
-                      <form action={removeStock} className="flex items-center gap-2">
-                        <input type="hidden" name="componentId" value={component.id} />
-                        <input type="hidden" name="lotId" value={lot.id} />
-                        <input className="h-9 w-20 rounded-lg border border-[#d9e2d8] px-2 text-sm" type="number" name="quantity" min="1" max={lot.available_quantity} required aria-label={`Quantidade a remover de ${lot.lot_code || "lote sem identificação"}`} />
-                        <button className="h-9 rounded-lg border border-[#d9d0cc] px-3 text-sm font-semibold text-[#8d493f] hover:bg-[#fff5f3]" type="submit">Remover</button>
-                      </form>
+                      <RemoveStockForm
+                        action={removeStock}
+                        componentId={component.id}
+                        lotId={lot.id}
+                        lotLabel={lot.lot_code || "sem identificação"}
+                        availableQuantity={lot.available_quantity}
+                      />
                     ) : <span className="text-xs text-[#89958d]">—</span>}
                   </td> : null}
                 </tr>)}

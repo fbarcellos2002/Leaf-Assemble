@@ -4,7 +4,20 @@ import { requireActiveProfile } from "@/lib/auth/profile";
 import { componentCategorySchema } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
-type Props = { searchParams: Promise<{ category?: string; q?: string; error?: string }> };
+type Props = { searchParams: Promise<{ category?: string; q?: string; error?: string; tab?: string }> };
+type InventoryComponent = {
+  id: string;
+  category: string;
+  manufacturer: string;
+  name: string | null;
+  model: string;
+  description: string | null;
+  component_lots: Array<{
+    quantity_total: number;
+    reserved_quantity: number;
+    used_quantity: number;
+  }> | null;
+};
 
 const labels: Record<string, string> = {
   CPU: "CPU",
@@ -21,6 +34,7 @@ export default async function InventoryPage({ searchParams }: Props) {
   const profile = await requireActiveProfile();
   const params = await searchParams;
   const category = componentCategorySchema.safeParse(params.category);
+  const activeTab = params.tab === "unavailable" ? "unavailable" : "available";
   const query = params.q?.replace(/[^\p{L}\p{N}\s-]/gu, "").trim().slice(0, 120) ?? "";
   const supabase = await createClient();
   let componentQuery = supabase
@@ -31,6 +45,22 @@ export default async function InventoryPage({ searchParams }: Props) {
   if (category.success) componentQuery = componentQuery.eq("category", category.data);
   if (query) componentQuery = componentQuery.or(`name.ilike.%${query}%,manufacturer.ilike.%${query}%,model.ilike.%${query}%,description.ilike.%${query}%`);
   const { data: components, error } = await componentQuery;
+  const inventoryItems = ((components ?? []) as InventoryComponent[]).map((component) => {
+    const lots = component.component_lots ?? [];
+    const available = lots.reduce((sum, lot) => sum + lot.quantity_total - lot.reserved_quantity - lot.used_quantity, 0);
+    return { component, available };
+  });
+  const availableItems = inventoryItems.filter((item) => item.available > 0);
+  const unavailableItems = inventoryItems.filter((item) => item.available <= 0);
+  const visibleItems = activeTab === "available" ? availableItems : unavailableItems;
+  const tabHref = (tab: "available" | "unavailable") => {
+    const search = new URLSearchParams();
+    if (query) search.set("q", query);
+    if (category.success) search.set("category", category.data);
+    if (tab === "unavailable") search.set("tab", tab);
+    const suffix = search.toString();
+    return suffix ? `/estoque?${suffix}` : "/estoque";
+  };
 
   return (
     <div>
@@ -44,6 +74,7 @@ export default async function InventoryPage({ searchParams }: Props) {
       </div>
 
       <form className="mt-7 flex flex-col gap-3 rounded-2xl border border-[#dce6d8] bg-white p-4 sm:flex-row">
+        <input type="hidden" name="tab" value={activeTab} />
         <input className="h-11 min-w-0 flex-1 rounded-xl border border-[#d9e2d8] px-3" name="q" defaultValue={query} placeholder="Buscar peça, fabricante ou modelo do gabinete" />
         <select className="h-11 rounded-xl border border-[#d9e2d8] bg-white px-3" name="category" defaultValue={category.success ? category.data : ""}>
           <option value="">Todas as categorias</option>
@@ -52,11 +83,27 @@ export default async function InventoryPage({ searchParams }: Props) {
         <button className="h-11 rounded-xl border border-[#cdddc7] px-5 font-semibold text-[#315b3c] hover:bg-[#f5f7f2]" type="submit">Filtrar</button>
       </form>
 
+      <nav aria-label="Disponibilidade do estoque" className="mt-6 flex gap-2 border-b border-[#dce6d8]">
+        {([
+          ["available", "Disponíveis", availableItems.length],
+          ["unavailable", "Indisponíveis", unavailableItems.length],
+        ] as const).map(([tab, label, count]) => (
+          <Link
+            key={tab}
+            aria-current={activeTab === tab ? "page" : undefined}
+            className={`-mb-px border-b-2 px-4 py-3 text-sm font-semibold transition ${activeTab === tab ? "border-[#4b8a2a] text-[#315b3c]" : "border-transparent text-[#718276] hover:text-[#315b3c]"}`}
+            href={tabHref(tab)}
+          >
+            {label} <span className="ml-1 text-xs">{count}</span>
+          </Link>
+        ))}
+      </nav>
+
       {error ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível consultar o estoque.</p> : null}
       {params.error === "invalid-input" ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Confira os dados informados.</p> : null}
 
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {(components ?? []).map((component) => {
+        {visibleItems.map(({ component, available }) => {
           const lots = component.component_lots ?? [];
           const total = lots.reduce((sum, lot) => sum + lot.quantity_total, 0);
           const reserved = lots.reduce((sum, lot) => sum + lot.reserved_quantity, 0);
@@ -65,7 +112,7 @@ export default async function InventoryPage({ searchParams }: Props) {
             <Link key={component.id} href={`/estoque/${component.id}`} className="group rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#aac69a] hover:shadow-md">
               <div className="flex items-start justify-between gap-3">
                 <span className="rounded-full bg-[#eaf1e4] px-3 py-1.5 text-xs font-semibold text-[#315b3c]">{labels[component.category] ?? component.category}</span>
-                <span className="text-sm font-semibold text-[#315b3c]">{total - reserved - used} disponíveis</span>
+                <span className={`text-sm font-semibold ${available > 0 ? "text-[#315b3c]" : "text-[#8d493f]"}`}>{available > 0 ? `${available} disponíveis` : "Sem unidades disponíveis"}</span>
               </div>
               <h2 className="mt-4 text-lg font-semibold text-[#153b2a] group-hover:text-[#4b8a2a]">{component.description || component.name || `${component.manufacturer} ${component.model}`}</h2>
               <div className="mt-4 flex gap-5 border-t border-[#edf1ea] pt-4 text-sm text-[#718276]">
@@ -77,10 +124,10 @@ export default async function InventoryPage({ searchParams }: Props) {
           );
         })}
       </section>
-      {!error && components?.length === 0 ? (
+      {!error && visibleItems.length === 0 ? (
         <div className="mt-6 rounded-3xl border border-dashed border-[#cdddc7] bg-white/70 px-6 py-14 text-center">
-          <p className="text-lg font-semibold text-[#315b3c]">Nenhuma peça encontrada</p>
-          <p className="mt-2 text-sm text-[#718276]">{query || category.success ? "Altere os filtros para ampliar a busca." : "Cadastre o estoque real para começar."}</p>
+          <p className="text-lg font-semibold text-[#315b3c]">{activeTab === "available" ? "Nenhuma peça disponível" : "Nenhuma peça indisponível"}</p>
+          <p className="mt-2 text-sm text-[#718276]">{query || category.success ? "Altere os filtros ou consulte a outra aba." : activeTab === "available" ? "As peças sem unidades disponíveis aparecem na aba Indisponíveis." : "Peças sem estoque disponível aparecerão aqui."}</p>
         </div>
       ) : null}
     </div>

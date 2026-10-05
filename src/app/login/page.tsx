@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { appVersion } from "@/lib/app-version";
 
 import { signIn } from "./actions";
 import { ClearSessionActivity } from "./clear-session-activity";
@@ -61,7 +62,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </p>
         ) : null}
 
-        <LoginForm action={signIn} />
+        <LoginForm action={signIn} version={appVersion} />
       </section>
     </main>
   );
