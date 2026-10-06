@@ -61,6 +61,14 @@ export default async function InventoryPage({ searchParams }: Props) {
     const suffix = search.toString();
     return suffix ? `/estoque?${suffix}` : "/estoque";
   };
+  const categoryHref = (nextCategory: string) => {
+    const search = new URLSearchParams();
+    if (query) search.set("q", query);
+    if (nextCategory) search.set("category", nextCategory);
+    if (activeTab === "unavailable") search.set("tab", activeTab);
+    const suffix = search.toString();
+    return suffix ? `/estoque?${suffix}` : "/estoque";
+  };
 
   return (
     <div>
@@ -73,15 +81,26 @@ export default async function InventoryPage({ searchParams }: Props) {
         {profile.role === "ADMIN" ? <Link href="/estoque/novo" className="flex h-11 w-fit items-center rounded-xl bg-[#153b2a] px-5 font-semibold text-white hover:bg-[#205138]">Cadastrar peça</Link> : null}
       </div>
 
-      <form className="mt-7 flex flex-col gap-3 rounded-2xl border border-[#dce6d8] bg-white p-4 sm:flex-row">
+      <form className="mt-7 rounded-2xl border border-[#dce6d8] bg-white p-4">
         <input type="hidden" name="tab" value={activeTab} />
-        <input className="h-11 min-w-0 flex-1 rounded-xl border border-[#d9e2d8] px-3" name="q" defaultValue={query} placeholder="Buscar peça, fabricante ou modelo do gabinete" />
-        <select className="h-11 rounded-xl border border-[#d9e2d8] bg-white px-3" name="category" defaultValue={category.success ? category.data : ""}>
-          <option value="">Todas as categorias</option>
-          {Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <button className="h-11 rounded-xl border border-[#cdddc7] px-5 font-semibold text-[#315b3c] hover:bg-[#f5f7f2]" type="submit">Filtrar</button>
+        {category.success ? <input type="hidden" name="category" value={category.data} /> : null}
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input className="h-11 min-w-0 flex-1 rounded-xl border border-[#d9e2d8] px-3" name="q" defaultValue={query} placeholder="Buscar peça, fabricante ou modelo do gabinete" />
+          <button className="h-11 rounded-xl border border-[#cdddc7] px-5 font-semibold text-[#315b3c] hover:bg-[#f5f7f2]" type="submit">Buscar</button>
+        </div>
       </form>
+
+      <nav aria-label="Filtrar por categoria" className="mt-3 flex flex-wrap gap-2">
+        {[["", "Todas as peças"], ...Object.entries(labels)].map(([value, label]) => {
+          const selected = value ? category.success && category.data === value : !category.success;
+          return <Link
+            key={value || "all"}
+            aria-current={selected ? "page" : undefined}
+            className={`rounded-full border px-3.5 py-2 text-sm font-medium transition ${selected ? "border-[#315b3c] bg-[#eaf1e4] text-[#315b3c]" : "border-[#dce6d8] bg-white text-[#718276] hover:border-[#aac69a] hover:text-[#315b3c]"}`}
+            href={categoryHref(value)}
+          >{label}</Link>;
+        })}
+      </nav>
 
       <nav aria-label="Disponibilidade do estoque" className="mt-6 flex gap-2 border-b border-[#dce6d8]">
         {([

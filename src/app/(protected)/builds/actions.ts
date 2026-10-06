@@ -231,13 +231,13 @@ export async function releaseBuildComponent(formData: FormData) {
   const buildId = z.uuid().parse(formData.get("buildId"));
   const buildComponentId = z.uuid().parse(formData.get("buildComponentId"));
   const supabase = await createClient();
-  const { error } = await supabase.rpc("release_build_component", {
+  const { data: releasedCount, error } = await supabase.rpc("release_build_component", {
     p_build_component_id: buildComponentId,
   });
   if (error) redirect(`/builds/${buildId}?error=release-failed`);
   revalidatePath("/estoque");
   revalidatePath(`/builds/${buildId}`);
-  redirect(`/builds/${buildId}?notice=released`);
+  redirect(`/builds/${buildId}?notice=${(releasedCount ?? 0) > 1 ? "dependencies-released" : "released"}`);
 }
 
 export async function cancelBuild(formData: FormData) {
