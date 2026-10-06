@@ -53,6 +53,14 @@ describe("processadores e memória", () => {
         lots: [{ id: "ram-lot", lotCode: "R-1", available: 1 }],
       },
       {
+        id: "cooler",
+        category: "CPU_COOLER",
+        manufacturer: "Marca de teste",
+        model: "Cooler compatível",
+        specs: { supportedSockets: ["LGA1700"], formFactor: "Air cooler", heightMm: 155, tdpRatingW: 100 },
+        lots: [{ id: "cooler-lot", lotCode: "C-1", available: 1 }],
+      },
+      {
         id: "storage",
         category: "STORAGE",
         manufacturer: "Marca de teste",
