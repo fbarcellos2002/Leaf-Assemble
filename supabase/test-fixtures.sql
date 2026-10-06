@@ -94,7 +94,7 @@ begin
     ('a0000000-0000-4000-8000-000000000003', 'MOTHERBOARD', 'Leaf Assemble', '[TESTE] Placa-mãe LGA1700 DDR5', 'MB-TEST-I', '[TESTE] Placa-mãe Intel de demonstração', '{"socket":"LGA 1700","chipset":"TESTE-I","formFactor":"ATX","memoryType":"DDR5","memorySlots":4,"maxMemoryGb":128,"supportedMemoryFrequenciesMhz":[5200,5600],"storageInterfaces":["SATA","M.2 NVMe"],"pcieSlots":2}'::jsonb, actor_profile_id),
     ('a0000000-0000-4000-8000-000000000004', 'MOTHERBOARD', 'Leaf Assemble', '[TESTE] Placa-mãe AM5 DDR5', 'MB-TEST-A', '[TESTE] Placa-mãe AMD de demonstração', '{"socket":"AM5","chipset":"TESTE-A","formFactor":"ATX","memoryType":"DDR5","memorySlots":4,"maxMemoryGb":128,"supportedMemoryFrequenciesMhz":[5200,5600],"storageInterfaces":["SATA","M.2 NVMe"],"pcieSlots":2}'::jsonb, actor_profile_id),
     ('a0000000-0000-4000-8000-000000000005', 'RAM', 'Leaf Assemble', '[TESTE] Kit RAM DDR5 32 GB', 'RAM-TEST-32', '[TESTE] Kit de memória de demonstração', '{"memoryType":"DDR5","capacityGb":32,"frequencyMhz":5200,"formFactor":"DIMM","ecc":false,"moduleCount":2}'::jsonb, actor_profile_id),
-    ('a0000000-0000-4000-8000-000000000006', 'CPU_COOLER', 'Leaf Assemble', '[TESTE] Cooler universal', 'COOLER-TEST', '[TESTE] Cooler de demonstração compatível com Intel e AMD', '{"supportedSockets":["LGA1700","AM5"],"formFactor":"Air cooler","heightMm":155,"tdpRatingW":180}'::jsonb, actor_profile_id),
+    ('a0000000-0000-4000-8000-000000000006', 'CPU_COOLER', 'Leaf Assemble', '[TESTE] Cooler universal', 'COOLER-TEST', '[TESTE] Cooler de demonstração compatível com Intel e AMD', '{"supportedSockets":["LGA1700","AM5"],"socketAdapter":true,"formFactor":"Air cooler","heightMm":155,"tdpRatingW":180}'::jsonb, actor_profile_id),
     ('a0000000-0000-4000-8000-000000000007', 'STORAGE', 'Leaf Assemble', '[TESTE] SSD M.2 NVMe 1 TB', 'SSD-TEST-NVME', '[TESTE] SSD NVMe de demonstração', '{"type":"SSD","capacityGb":1000,"interface":"M.2 NVMe","formFactor":"M.2 2280","readSpeedMbS":5000,"writeSpeedMbS":4000}'::jsonb, actor_profile_id),
     ('a0000000-0000-4000-8000-000000000008', 'STORAGE', 'Leaf Assemble', '[TESTE] SSD SATA 1 TB', 'SSD-TEST-SATA', '[TESTE] SSD SATA de demonstração', '{"type":"SSD","capacityGb":1000,"interface":"SATA III","formFactor":"2.5 inch","readSpeedMbS":550,"writeSpeedMbS":500}'::jsonb, actor_profile_id),
     ('a0000000-0000-4000-8000-000000000009', 'PSU', 'Leaf Assemble', '[TESTE] Fonte ATX 750 W', 'PSU-TEST-750', '[TESTE] Fonte de demonstração', '{"wattageW":750,"efficiencyRating":"80 Plus Gold","formFactor":"ATX"}'::jsonb, actor_profile_id),
@@ -155,9 +155,9 @@ begin
   );
 
   update public.component_lots lot
-  set reserved_quantity = reservations.quantity
+  set reserved_quantity = reservations.reserved_total
   from (
-    select lot_id, sum(quantity)::integer as quantity
+    select build_component.lot_id, sum(reservation.quantity)::integer as reserved_total
     from public.inventory_reservations reservation
     join public.build_components build_component on build_component.id = reservation.build_component_id
     where reservation.status = 'ACTIVE'
@@ -167,7 +167,7 @@ begin
         'c0000000-0000-4000-8000-000000000003',
         'c0000000-0000-4000-8000-000000000004'
       )
-    group by lot_id
+    group by build_component.lot_id
   ) reservations
   where lot.id = reservations.lot_id;
 

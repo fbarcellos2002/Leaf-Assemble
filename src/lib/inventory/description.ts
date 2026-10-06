@@ -27,6 +27,7 @@ function summary(category: ComponentCategory, specs: Specs) {
           typeof specs.cores === "number" && Number.isFinite(specs.cores) ? `${specs.cores}N` : undefined,
           typeof specs.threads === "number" && Number.isFinite(specs.threads) ? `${specs.threads}T` : undefined,
         ].filter(Boolean).join(" ") || undefined,
+        text(specs, "generation"),
         text(specs, "socket"),
       ];
     case "MOTHERBOARD":
@@ -63,10 +64,7 @@ export function generateComponentDescription(
   const identity = cleanName.toLocaleLowerCase("pt-BR").startsWith(cleanManufacturer.toLocaleLowerCase("pt-BR"))
     ? cleanName
     : [cleanManufacturer, cleanName].filter(Boolean).join(" ");
-  const parts = [
-    category === "CPU" ? identity : cleanManufacturer,
-    ...summary(category, specs),
-  ]
+  const parts = [identity, ...summary(category, specs)]
     .filter((part): part is string => Boolean(part?.trim()));
   const seen = new Set<string>();
   return parts.filter((part) => {

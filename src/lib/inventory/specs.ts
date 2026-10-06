@@ -15,6 +15,23 @@ export const manufacturerChoices: Partial<Record<ComponentCategory, readonly str
   CPU: ["Intel", "AMD"],
 };
 
+export const socketChoicesByManufacturer = {
+  Intel: [
+    "LGA 1851", "LGA 1700", "LGA 2066", "LGA 2011-v3", "LGA 2011",
+    "LGA 1366", "LGA 1200", "LGA 1156", "LGA 1155", "LGA 1151",
+    "LGA 1150", "LGA 775",
+  ],
+  AMD: [
+    "AM5", "AM4", "sTR5", "sTRX4", "TR4", "sWRX8",
+    "AM3+", "AM3", "AM2+", "AM2", "AM1", "FM2+", "FM2", "FM1",
+  ],
+} as const;
+
+export const allSocketChoices = [
+  ...socketChoicesByManufacturer.Intel,
+  ...socketChoicesByManufacturer.AMD,
+] as const;
+
 export const componentCategorySchema = z.enum(componentCategories);
 export type ComponentCategory = z.infer<typeof componentCategorySchema>;
 
@@ -27,6 +44,7 @@ const optionalBoolean = z.boolean().optional();
 
 const specSchemas = {
   CPU: z.object({
+    generation: optionalText,
     socket: optionalText,
     cores: optionalNonnegativeInteger,
     threads: optionalNonnegativeInteger,
@@ -81,6 +99,7 @@ const specSchemas = {
   }),
   CPU_COOLER: z.object({
     supportedSockets: optionalTextList,
+    socketAdapter: optionalBoolean,
     formFactor: optionalText,
   }),
 } satisfies Record<ComponentCategory, z.ZodType>;
@@ -105,6 +124,7 @@ export type SpecField = {
 
 export const specFields: Record<ComponentCategory, SpecField[]> = {
   CPU: [
+    { key: "generation", label: "Geração do processador", type: "text", hint: "Ex.: 13ª geração, Ryzen 5000" },
     { key: "socket", label: "Socket", type: "text", hint: "Informe apenas o número do socket" },
     { key: "cores", label: "Núcleos", type: "number" },
     { key: "threads", label: "Threads", type: "number" },
@@ -159,6 +179,7 @@ export const specFields: Record<ComponentCategory, SpecField[]> = {
   ],
   CPU_COOLER: [
     { key: "supportedSockets", label: "Sockets compatíveis", type: "text-list", hint: "Separe por vírgula" },
+    { key: "socketAdapter", label: "Adaptador", type: "boolean" },
     { key: "formFactor", label: "Formato", type: "text" },
   ],
 };

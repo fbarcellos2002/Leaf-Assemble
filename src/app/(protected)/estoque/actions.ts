@@ -17,8 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const componentFieldsSchema = z.object({
   manufacturer: z.string().trim().min(1).max(100),
-  name: z.string().trim().max(140).optional(),
-  caseModel: z.string().trim().max(140).optional(),
+  model: z.string().trim().min(1).max(140),
   lotCode: z.string().trim().max(80).optional(),
   quantity: z.preprocess((value) => value === null ? undefined : value, z.coerce.number().int().min(0).max(100000)),
   notes: z.string().trim().max(500).optional(),
@@ -31,8 +30,7 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
   const category = componentCategorySchema.safeParse(formData.get("category"));
   const fields = componentFieldsSchema.safeParse({
     manufacturer: formData.get("manufacturer") ?? "",
-    name: formData.get("name") ?? "",
-    caseModel: formData.get("caseModel") ?? "",
+    model: formData.get("model") ?? "",
     lotCode: formData.get("lotCode") ?? "",
     quantity: formData.get("quantity"),
     notes: formData.get("notes") ?? "",
@@ -40,40 +38,40 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
   if (!category.success || !fields.success) return { error: "invalid-input" };
   const categoryManufacturerChoices = manufacturerChoices[category.data];
   if (categoryManufacturerChoices && !categoryManufacturerChoices.includes(fields.data.manufacturer)) return { error: "invalid-input" };
-  if ((category.data === "CPU" || category.data === "GPU") && !fields.data.name) return { error: "invalid-input" };
-
   const rawSpecs: Record<string, unknown> = {};
   for (const field of specFields[category.data]) {
     const value = parseSpecFormValue(field, formData.get(`spec_${field.key}`));
     if (value !== undefined) rawSpecs[field.key] = value;
   }
-  if ((category.data === "CPU" || category.data === "MOTHERBOARD") && typeof rawSpecs.socket === "string") {
-    const match = /^(LGA|AM)\s*(\d+)$/i.exec(rawSpecs.socket.trim());
-    if (!match) return { error: "invalid-specs" };
-    const prefix = match[1].toUpperCase();
-    if (category.data === "CPU") {
-      const expectedPrefix = fields.data.manufacturer === "Intel" ? "LGA" : fields.data.manufacturer === "AMD" ? "AM" : null;
-      if (!expectedPrefix || prefix !== expectedPrefix) return { error: "invalid-specs" };
-    }
-    rawSpecs.socket = `${prefix} ${match[2]}`;
+  if (category.data === "CPU") {
+    if (typeof rawSpecs.socket !== "string") return { error: "invalid-specs" };
+  }
+  if (category.data === "MOTHERBOARD") {
+    if (typeof rawSpecs.socket !== "string") return { error: "invalid-specs" };
+  }
+  if (category.data === "CPU_COOLER") {
+    const sockets = rawSpecs.supportedSockets;
+    if (!Array.isArray(sockets) || sockets.length === 0 || sockets.some((socket) => typeof socket !== "string")) return { error: "invalid-specs" };
+    if (sockets.length > 1 && rawSpecs.socketAdapter !== true) return { error: "invalid-specs" };
   }
   const specs = parseComponentSpecs(category.data, rawSpecs);
   if (!specs.success) return { error: "invalid-specs" };
   const description = generateComponentDescription(
     category.data,
     fields.data.manufacturer,
-    fields.data.name ?? "",
+    fields.data.model,
     specs.data as Record<string, unknown>,
   );
-  const storedName = fields.data.name || description || fields.data.manufacturer;
-  const model = category.data === "CASE" ? fields.data.caseModel || description || fields.data.manufacturer : storedName;
+  const storedName = fields.data.model.toLocaleLowerCase("pt-BR").startsWith(fields.data.manufacturer.toLocaleLowerCase("pt-BR"))
+    ? fields.data.model
+    : `${fields.data.manufacturer} ${fields.data.model}`;
 
   const supabase = await createClient();
   const { data: componentId, error } = await supabase.rpc("admin_create_component", {
     p_category: category.data,
     p_manufacturer: fields.data.manufacturer,
     p_name: storedName,
-    p_model: model,
+    p_model: fields.data.model,
     p_description: description,
     p_specs: specs.data,
     p_lot_code: fields.data.lotCode || null,

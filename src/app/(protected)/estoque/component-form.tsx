@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 
 import {
+  socketChoicesByManufacturer as defaultSocketChoices,
   componentCategories,
   type ComponentCategory,
   manufacturerChoices,
@@ -13,7 +14,11 @@ import {
 import { generateComponentDescription } from "@/lib/inventory/description";
 
 type FormState = { error: "invalid-input" | "invalid-specs" | "save-failed" | null };
-type Props = { action: (state: FormState, formData: FormData) => Promise<FormState> };
+type SocketOptions = { Intel: readonly string[]; AMD: readonly string[] };
+type Props = {
+  action: (state: FormState, formData: FormData) => Promise<FormState>;
+  socketChoicesByManufacturer?: SocketOptions;
+};
 
 const categoryLabels: Record<ComponentCategory, string> = {
   CPU: "Processador (CPU)",
@@ -26,15 +31,14 @@ const categoryLabels: Record<ComponentCategory, string> = {
   CPU_COOLER: "Cooler do processador",
 };
 
-export function ComponentForm({ action }: Props) {
+export function ComponentForm({ action, socketChoicesByManufacturer = defaultSocketChoices }: Props) {
   const [formState, formAction, isPending] = useActionState(action, { error: null });
   const [category, setCategory] = useState<ComponentCategory>("CPU");
   const [specValues, setSpecValues] = useState<Record<string, string>>({});
   const [manufacturer, setManufacturer] = useState("");
   const [socketPlatform, setSocketPlatform] = useState<"Intel" | "AMD" | "">("");
-  const [socketModel, setSocketModel] = useState("");
-  const [name, setName] = useState("");
-  const [caseModel, setCaseModel] = useState("");
+  const [model, setModel] = useState("");
+  const [modelError, setModelError] = useState(false);
   const [quantity, setQuantity] = useState("");
   const [lotCode, setLotCode] = useState("");
   const [lotNotes, setLotNotes] = useState("");
@@ -42,19 +46,6 @@ export function ComponentForm({ action }: Props) {
 
   function updateSpecValue(key: string, value: string) {
     setSpecValues((current) => ({ ...current, [key]: value }));
-  }
-
-  function updateMotherboardSocket(platform: "Intel" | "AMD" | "", model: string) {
-    const prefix = platform === "Intel" ? "LGA" : platform === "AMD" ? "AM" : "";
-    const digits = model.replace(/\D/g, "");
-    const socket = prefix && digits ? `${prefix} ${digits}` : "";
-    updateSpecValue("socket", socket);
-  }
-
-  function updateCpuSocket(value: string) {
-    const digits = value.replace(/\D/g, "");
-    const prefix = manufacturer === "Intel" ? "LGA" : manufacturer === "AMD" ? "AM" : "";
-    updateSpecValue("socket", prefix && digits ? `${prefix} ${digits}` : "");
   }
 
   const previewSpecs: Record<string, unknown> = {};
@@ -68,7 +59,8 @@ export function ComponentForm({ action }: Props) {
     else if (field.type === "number-list") previewSpecs[field.key] = value.split(",").map(Number).filter(Number.isFinite);
     else previewSpecs[field.key] = value;
   }
-  const generatedDescription = generateComponentDescription(category, manufacturer, name, previewSpecs);
+  const generatedDescription = generateComponentDescription(category, manufacturer, model, previewSpecs);
+  const allSocketChoices = [...socketChoicesByManufacturer.Intel, ...socketChoicesByManufacturer.AMD];
 
   function renderSpecField(field: (typeof specFields)[ComponentCategory][number]) {
     const value = specValues[field.key] ?? "";
@@ -86,30 +78,19 @@ export function ComponentForm({ action }: Props) {
     }
 
     if (category === "CPU" && field.key === "socket") {
-      const prefix = manufacturer === "Intel" ? "LGA" : manufacturer === "AMD" ? "AM" : "";
-      const numericValue = value.replace(/\D/g, "");
+      const options = manufacturer === "Intel"
+        ? socketChoicesByManufacturer.Intel
+        : manufacturer === "AMD" ? socketChoicesByManufacturer.AMD : [];
       return (
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
-          <span className="flex h-12 min-w-16 items-center justify-center rounded-xl border border-[#d9e2d8] bg-[#f7f9f5] px-3 font-semibold text-[#315b3c]" aria-label="Prefixo do socket">{prefix || "—"}</span>
-          <input
-            className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal"
-            aria-label="Número do socket"
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={5}
-            placeholder={prefix ? "Somente números" : "Selecione Intel ou AMD primeiro"}
-            value={numericValue}
-            disabled={!prefix}
-            onChange={(event) => updateCpuSocket(event.target.value)}
-          />
-          <input type="hidden" name={`spec_${field.key}`} value={value} />
-        </div>
+        <select className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal" name={`spec_${field.key}`} aria-label={field.label} value={value} disabled={!options.length} onChange={(event) => updateSpecValue(field.key, event.target.value)}>
+          <option value="">{options.length ? "Selecione o socket" : "Selecione Intel ou AMD primeiro"}</option>
+          {options.map((socket) => <option key={socket} value={socket}>{socket}</option>)}
+        </select>
       );
     }
 
     if (category === "MOTHERBOARD" && field.key === "socket") {
-      const prefix = socketPlatform === "Intel" ? "LGA" : socketPlatform === "AMD" ? "AM" : "";
+      const sockets = socketPlatform ? socketChoicesByManufacturer[socketPlatform] : [];
       return (
         <div className="grid grid-cols-1 gap-2">
           <select
@@ -119,34 +100,87 @@ export function ComponentForm({ action }: Props) {
             onChange={(event) => {
               const nextPlatform = event.target.value as "Intel" | "AMD" | "";
               setSocketPlatform(nextPlatform);
-              updateMotherboardSocket(nextPlatform, socketModel);
+              updateSpecValue("socket", "");
             }}
           >
             <option value="">Selecione Intel ou AMD</option>
             <option value="Intel">Intel (LGA)</option>
             <option value="AMD">AMD (AM)</option>
           </select>
-          <label className="grid gap-2 text-sm font-normal text-[#718276]">
-            Número do socket{prefix ? ` (${prefix})` : ""}
+          <select className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal" name="spec_socket" aria-label="Socket da placa-mãe" value={value} disabled={!sockets.length} onChange={(event) => updateSpecValue("socket", event.target.value)}>
+            <option value="">{sockets.length ? "Selecione o socket" : "Selecione Intel ou AMD primeiro"}</option>
+            {sockets.map((socket) => <option key={socket} value={socket}>{socket}</option>)}
+          </select>
+        </div>
+      );
+    }
+
+    if (category === "CPU_COOLER" && field.key === "supportedSockets") {
+      const selected = value.split(",").map((item) => item.trim()).filter(Boolean);
+      const hasAdapter = specValues.socketAdapter === "true";
+      const primarySocket = selected[0] ?? "";
+      return (
+        <div className="grid gap-3">
+          <input type="hidden" name="spec_supportedSockets" value={selected.join(", ")} />
+          <select
+            className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal"
+            aria-label="Socket compatível"
+            value={primarySocket}
+            onChange={(event) => {
+              const next = event.target.value;
+              updateSpecValue("supportedSockets", [next, ...selected.slice(1).filter((socket) => socket !== next)].filter(Boolean).join(", "));
+            }}
+          >
+            <option value="">Selecione o socket compatível</option>
+            {allSocketChoices.map((socket) => <option key={socket} value={socket}>{socket}</option>)}
+          </select>
+          {hasAdapter ? (
+            <div role="group" aria-label="Sockets adicionais pelo adaptador" className="grid grid-cols-1 gap-2 rounded-xl border border-[#d9e2d8] p-3">
+              <p className="text-xs font-normal text-[#718276]">Selecione os sockets adicionais incluídos com o adaptador.</p>
+              {allSocketChoices.filter((socket) => socket !== primarySocket).map((socket) => (
+                <label key={socket} className="flex items-center gap-2 text-sm font-normal text-[#44594b]">
+                  <input
+                    type="checkbox"
+                    className="size-4 shrink-0 accent-[#315b3c]"
+                    checked={selected.includes(socket)}
+                    onChange={(event) => {
+                      const next = event.target.checked
+                        ? [...selected, socket]
+                        : selected.filter((item) => item !== socket);
+                      updateSpecValue("supportedSockets", next.join(", "));
+                    }}
+                  />
+                  <span>{socket}</span>
+                </label>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (category === "CPU_COOLER" && field.key === "socketAdapter") {
+      const checked = value === "true";
+      return (
+        <>
+          <input type="hidden" name="spec_socketAdapter" value={checked ? "true" : "false"} />
+          <label className="flex items-center gap-2 rounded-xl border border-[#d9e2d8] p-3 text-sm font-normal text-[#44594b]">
             <input
-              className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal text-[#294333]"
-              aria-label="Número do socket"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={5}
-              placeholder={prefix ? "Somente números" : "Selecione Intel ou AMD primeiro"}
-              value={socketModel.replace(/\D/g, "")}
-              disabled={!prefix}
+              type="checkbox"
+              className="size-4 accent-[#315b3c]"
+              checked={checked}
               onChange={(event) => {
-                const digits = event.target.value.replace(/\D/g, "");
-                setSocketModel(digits);
-                updateMotherboardSocket(socketPlatform, digits);
+                const enabled = event.target.checked;
+                updateSpecValue("socketAdapter", enabled ? "true" : "false");
+                if (!enabled) {
+                  const first = specValues.supportedSockets?.split(",").map((item) => item.trim()).filter(Boolean)[0] ?? "";
+                  updateSpecValue("supportedSockets", first);
+                }
               }}
             />
+            <span>O cooler possui adaptador para outros sockets</span>
           </label>
-          <input type="hidden" name="spec_socket" value={value} />
-        </div>
+        </>
       );
     }
 
@@ -200,7 +234,14 @@ export function ComponentForm({ action }: Props) {
   }
 
   return (
-    <form action={formAction} className="space-y-8">
+    <form action={formAction} className="space-y-8" onInvalidCapture={() => {
+      if (!model.trim()) setModelError(true);
+    }} onSubmit={(event) => {
+      if (!model.trim()) {
+        event.preventDefault();
+        setModelError(true);
+      }
+    }}>
       {formState.error ? (
         <p role="alert" className="rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">
           {formState.error === "invalid-input"
@@ -223,7 +264,8 @@ export function ComponentForm({ action }: Props) {
                 setSpecValues({});
                 setManufacturer("");
                 setSocketPlatform("");
-                setSocketModel("");
+                setModel("");
+                setModelError(false);
               }}
               value={category}
             >
@@ -254,27 +296,25 @@ export function ComponentForm({ action }: Props) {
               onChange={(event) => setManufacturer(event.target.value)}
             />}
           </label>
-          {category === "CPU" || category === "GPU" ? <div className="grid gap-2">
-            <label className="grid gap-2 text-sm font-medium text-[#294333]">
-              Nome da peça <span className="text-xs font-normal text-[#718276]">Obrigatório; informe a identificação comercial.</span>
-              <input
-                className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal"
-                name="name"
-                required
-                maxLength={140}
-                autoComplete="off"
-                placeholder={category === "CPU" ? "Ex.: Core i5-2500" : "Ex.: GeForce RTX 4060"}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </label>
-          </div> : null}
-          {category === "CASE" ? (
-            <label className="grid gap-2 text-sm font-medium text-[#294333]">
-              Modelo do gabinete (opcional)
-              <input className="h-12 w-full rounded-xl border border-[#d9e2d8] px-3 font-normal" name="caseModel" maxLength={140} autoComplete="off" placeholder="Modelo do gabinete, se conhecido" value={caseModel} onChange={(event) => setCaseModel(event.target.value)} />
-            </label>
-          ) : null}
+          <label className="grid gap-2 text-sm font-medium text-[#294333]">
+            Modelo <span className="text-xs font-semibold text-[#b42318]">Obrigatório</span>
+            <input
+              className={`h-12 w-full rounded-xl border px-3 font-normal ${modelError ? "border-[#b42318] text-[#b42318] focus:border-[#b42318] focus:outline-[#b42318]" : "border-[#d9e2d8]"}`}
+              name="model"
+              required
+              aria-invalid={modelError}
+              maxLength={140}
+              autoComplete="off"
+              placeholder={category === "CPU" ? "Ex.: Core i5-2500" : category === "GPU" ? "Ex.: GeForce RTX 4060" : "Ex.: modelo do componente"}
+              value={model}
+              onInvalid={() => setModelError(true)}
+              onChange={(event) => {
+                setModel(event.target.value);
+                if (event.target.value.trim()) setModelError(false);
+              }}
+            />
+            {modelError ? <span role="alert" className="text-sm font-medium text-[#b42318]">Informe o modelo obrigatório antes de salvar.</span> : null}
+          </label>
         </div>
       </section>
 
