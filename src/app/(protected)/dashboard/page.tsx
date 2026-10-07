@@ -12,7 +12,7 @@ export default async function DashboardPage() {
     .select("id, status")
     .is("removed_at", null);
   const completeBuilds = (builds ?? []).filter((build) => build.status === "COMPLETED").length;
-  const incompleteBuilds = (builds ?? []).filter((build) => ["DRAFT", "INCOMPLETE"].includes(build.status)).length;
+  const incompleteBuilds = (builds ?? []).filter((build) => build.status === "INCOMPLETE").length;
   const inventoryMetrics = [
     ["Componentes cadastrados", inventory.components.length],
     ["Componentes totais", inventory.totalQuantity],

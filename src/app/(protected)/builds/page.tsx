@@ -6,9 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 type Props = { searchParams: Promise<{ notice?: string; error?: string }> };
 
 const statusLabels: Record<string, string> = {
-  DRAFT: "Rascunho",
   INCOMPLETE: "Incompleto",
-  READY: "Pronto para montar",
   COMPLETED: "Montado",
   CANCELLED: "Cancelado",
 };

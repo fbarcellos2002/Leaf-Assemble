@@ -23,7 +23,7 @@ export default async function WhatCanIBuildPage() {
     .from("builds")
     .select("status, build_components(is_active, components(id, category, manufacturer, name, model, description, specs))")
     .is("removed_at", null)
-    .in("status", ["DRAFT", "INCOMPLETE"]);
+    .eq("status", "INCOMPLETE");
   const inProgressBuilds: InProgressBuild[] = (activeBuildRows ?? []).map((build) => ({
     parts: (build.build_components ?? []).filter((item) => item.is_active).flatMap((item) => {
       const related = Array.isArray(item.components) ? item.components[0] : item.components;

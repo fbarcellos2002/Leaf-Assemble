@@ -136,8 +136,11 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
     .map(([, label]) => label);
   const requiredSlotCount = requiredCategoryLabels.length;
   const requiredFilled = requiredSlotCount - missingRequiredLabels.length;
-  const completeReady = build.status === "READY" && missingRequiredLabels.length === 0;
-  const statusLabel = build.status === "DRAFT" ? "Rascunho" : build.status === "INCOMPLETE" || (build.status === "READY" && missingRequiredLabels.length > 0) ? "Incompleto" : build.status === "READY" ? "Pronto" : build.status === "COMPLETED" ? "Concluído" : "Cancelado";
+  const hasUnconfirmedOrIncompatiblePart = activeBuildItems.some(
+    (item) => item.compatibility_status === "incompatible" || !item.compatibility_confirmed,
+  );
+  const completeReady = missingRequiredLabels.length === 0 && !hasUnconfirmedOrIncompatiblePart;
+  const statusLabel = build.status === "INCOMPLETE" ? "Incompleto" : build.status === "COMPLETED" ? "Concluído" : "Cancelado";
   const optionsBySlot: Record<string, AssemblyOption[]> = Object.fromEntries(buildSlots.map(({ slot, category }) => [
     slot,
     (inventory ?? []).filter((part) => part.category === category).flatMap((part) => {
@@ -202,7 +205,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
       </div>
 
       {query.error ? <div role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm leading-6 text-[#8d3c32]"><p>{errorMessages[query.error] ?? "Não foi possível atualizar o build."}</p>{query.error === "missing-components" && query.missing ? <p className="mt-1"><strong>Faltam:</strong> {query.missing}.</p> : null}</div> : null}
-      {query.notice ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">{query.notice === "reserved" ? "Peça reservada no estoque." : query.notice === "released" ? "Reserva liberada." : query.notice === "dependencies-released" ? "Peça e componentes dependentes removidos; todas as reservas foram liberadas." : query.notice === "cancelled" ? "Build cancelado e reservas liberadas." : query.notice === "completed" ? "Build concluído; peças marcadas como usadas." : query.notice === "updated" ? "Cadastro do computador atualizado." : query.notice === "draft-saved" ? "Rascunho salvo. As peças reservadas continuam vinculadas a este computador." : "Atualizado."}</p> : null}
+      {query.notice ? <p role="status" className="mt-5 rounded-xl bg-[#eef5e9] px-4 py-3 text-sm text-[#315b3c]">{query.notice === "reserved" ? "Peça reservada no estoque." : query.notice === "released" ? "Reserva liberada." : query.notice === "dependencies-released" ? "Peça e componentes dependentes removidos; todas as reservas foram liberadas." : query.notice === "cancelled" ? "Build cancelado e reservas liberadas." : query.notice === "completed" ? "Build concluído; peças marcadas como usadas." : query.notice === "updated" ? "Cadastro do computador atualizado." : query.notice === "draft-saved" ? "Alterações salvas. A build continua incompleta até você concluí-la." : "Atualizado."}</p> : null}
       {itemsError ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Não foi possível carregar os componentes do build.</p> : null}
 
       <details className="mt-6 rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm">
@@ -245,18 +248,19 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
 
       {canEdit ? (
         <div className="mt-7 flex flex-col gap-3 rounded-2xl border border-[#dce6d8] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          {completeReady ? <form action={completeBuild}><input type="hidden" name="buildId" value={id} /><button className="h-11 rounded-xl bg-[#153b2a] px-5 font-semibold text-white hover:bg-[#205138]" type="submit">Concluir build</button></form> : (
-            <div className="flex items-center gap-3 rounded-xl bg-[#f2f8ee] px-4 py-3 text-sm text-[#315b3c]">
-              <span className="rounded-full bg-[#dcebd4] px-3 py-1 font-semibold">{build.status === "DRAFT" ? "Rascunho" : "Montagem incompleta"}</span>
-              <span>{requiredFilled}/{requiredSlotCount} categorias obrigatórias preenchidas. A montagem continua salva enquanto você escolhe as peças.</span>
-            </div>
-          )}
-          {!completeReady ? <form action={saveBuildDraft} className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-3 rounded-xl bg-[#f2f8ee] px-4 py-3 text-sm text-[#315b3c]">
+            <span className="rounded-full bg-[#dcebd4] px-3 py-1 font-semibold">Incompleto</span>
+            <span>{completeReady ? "Todas as peças estão prontas. Salve a build para continuar depois ou conclua para finalizar." : `${requiredFilled}/${requiredSlotCount} categorias obrigatórias preenchidas. A build permanece salva enquanto você escolhe as peças.`}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {completeReady ? <form action={completeBuild}><input type="hidden" name="buildId" value={id} /><button className="h-11 rounded-xl bg-[#153b2a] px-5 font-semibold text-white hover:bg-[#205138]" type="submit">Concluir build</button></form> : null}
+            <form action={saveBuildDraft}>
             <input type="hidden" name="buildId" value={id} />
             <input type="hidden" name="name" value={build.name} />
             <input type="hidden" name="notes" value={build.notes ?? ""} />
             <button className="h-11 rounded-xl bg-[#153b2a] px-5 font-semibold text-white hover:bg-[#205138]" type="submit">Salvar rascunho</button>
-          </form> : null}
+            </form>
+          </div>
           <form action={cancelBuild}><input type="hidden" name="buildId" value={id} /><button className="h-11 shrink-0 rounded-xl border border-[#e4c8c2] px-5 font-semibold text-[#8d493f] hover:bg-[#fff5f3]" type="submit">Cancelar build</button></form>
         </div>
       ) : null}
