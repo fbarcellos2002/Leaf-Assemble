@@ -144,8 +144,14 @@ function cpuRamFrequency(cpu: CompatibilityPart, ram: CompatibilityPart) {
 }
 
 function coolerSocket(cooler: CompatibilityPart, target: CompatibilityPart) {
-  const supported = stringsValue(cooler.specs.supportedSockets);
+  const baseSocket = textValue(cooler.specs.socketBase);
+  if (baseSocket === "Genérico") {
+    return result("compatible", "Cooler genérico compatível com qualquer socket.", [cooler, target], "Genérico");
+  }
   const socket = textValue(target.specs.socket);
+  const adapters = stringsValue(cooler.specs.adapterSockets) ?? [];
+  const legacySupported = stringsValue(cooler.specs.supportedSockets);
+  const supported = baseSocket ? [baseSocket, ...(cooler.specs.socketAdapter === true ? adapters : [])] : legacySupported;
   if (!supported || !socket) {
     return result("unknown", "Socket compatível do cooler ou socket do componente não informado.", [cooler, target]);
   }

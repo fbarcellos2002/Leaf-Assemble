@@ -4,6 +4,28 @@ import { evaluateCompatibility } from "@/lib/compatibility/engine";
 import { calculateBuildCapacity, type InventoryPool } from "@/lib/inventory/capacity";
 
 describe("processadores e memória", () => {
+  it("considera cooler genérico compatível com socket de CPU e placa-mãe", () => {
+    const result = evaluateCompatibility([
+      { id: "cpu", category: "CPU", manufacturer: "Intel", model: "CPU", specs: { socket: "LGA 1700" } },
+      { id: "board", category: "MOTHERBOARD", manufacturer: "Marca", model: "Placa", specs: { socket: "LGA 1700" } },
+      { id: "cooler", category: "CPU_COOLER", manufacturer: "Marca", model: "Cooler", specs: { socketBase: "Genérico", coolerType: "Air cooler" } },
+    ]);
+
+    const coolerChecks = result.checks.filter((check) => check.components.includes("Marca Cooler"));
+    expect(coolerChecks).toHaveLength(2);
+    expect(coolerChecks.every((check) => check.status === "compatible")).toBe(true);
+  });
+
+  it("considera sockets de adaptador além do socket base do cooler", () => {
+    const result = evaluateCompatibility([
+      { id: "cpu", category: "CPU", manufacturer: "AMD", model: "CPU", specs: { socket: "AM4" } },
+      { id: "cooler", category: "CPU_COOLER", manufacturer: "Marca", model: "Cooler", specs: { socketBase: "AM5", socketAdapter: true, adapterSockets: ["AM4"], coolerType: "Air cooler" } },
+    ]);
+
+    expect(result.checks).toHaveLength(1);
+    expect(result.checks[0]?.status).toBe("compatible");
+  });
+
   it("avisa quando a frequência da RAM excede o limite informado da CPU", () => {
     const result = evaluateCompatibility([
       {

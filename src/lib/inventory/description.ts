@@ -84,7 +84,27 @@ export function generateComponentDescription(
       .join(" | ");
   }
   if (category === "GPU") {
-    return [cleanName, ...summary(category, specs)].filter((part): part is string => Boolean(part?.trim())).join(" - ");
+    return [cleanManufacturer, text(specs, "chipBrand"), cleanName, number(specs, "vramGb", "GB VRAM")]
+      .filter((part): part is string => Boolean(part?.trim()))
+      .join(" | ");
+  }
+  if (category === "STORAGE") {
+    return [cleanManufacturer, text(specs, "interface"), text(specs, "type"), number(specs, "capacityGb", "GB")]
+      .filter((part): part is string => Boolean(part?.trim()))
+      .join(" | ");
+  }
+  if (category === "PSU") {
+    return [cleanManufacturer, number(specs, "wattageW", "W"), text(specs, "efficiencyRating")]
+      .filter((part): part is string => Boolean(part?.trim()))
+      .join(" | ");
+  }
+  if (category === "CPU_COOLER") {
+    const adapters = Array.isArray(specs.adapterSockets) && specs.adapterSockets.every((item) => typeof item === "string")
+      ? specs.adapterSockets as string[]
+      : [];
+    return [cleanManufacturer, text(specs, "coolerType"), text(specs, "socketBase"), ...adapters]
+      .filter((part): part is string => Boolean(part?.trim()))
+      .join(" | ");
   }
   const identity = cleanName.toLocaleLowerCase("pt-BR").startsWith(cleanManufacturer.toLocaleLowerCase("pt-BR"))
     ? cleanName

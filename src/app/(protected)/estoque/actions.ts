@@ -15,6 +15,7 @@ import {
   specChoices,
   specFields,
   socketChoicesByManufacturer,
+  storageInterfaceRequiresSsd,
 } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
@@ -41,7 +42,7 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
     notes: formData.get("notes") ?? "",
   });
   if (!category.success || !fields.success) return { error: "invalid-input" };
-  if (category.data !== "MOTHERBOARD" && category.data !== "RAM" && !fields.data.model) return { error: "invalid-input" };
+  if (category.data !== "MOTHERBOARD" && category.data !== "RAM" && category.data !== "STORAGE" && category.data !== "PSU" && category.data !== "CASE" && category.data !== "CPU_COOLER" && !fields.data.model) return { error: "invalid-input" };
   if (category.data === "RAM" && fields.data.lotNoInformation !== "true" && !fields.data.lotCode) return { error: "invalid-input" };
   const categoryManufacturerChoices = manufacturerChoices[category.data];
   if (categoryManufacturerChoices && !categoryManufacturerChoices.includes(fields.data.manufacturer)) return { error: "invalid-input" };
@@ -104,13 +105,68 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
       || (rawSpecs.ecc !== undefined && typeof rawSpecs.ecc !== "boolean")
     ) return { error: "invalid-specs" };
   }
+  if (category.data === "GPU") {
+    const chipBrands = specChoices.GPU?.chipBrand ?? [];
+    const vramChoices = specChoices.GPU?.vramGb ?? [];
+    const pcieChoices = specChoices.GPU?.pcieVersion ?? [];
+    if (
+      typeof rawSpecs.chipBrand !== "string" || !chipBrands.includes(rawSpecs.chipBrand)
+      || typeof rawSpecs.vramGb !== "number" || !vramChoices.includes(String(rawSpecs.vramGb))
+      || typeof rawSpecs.recommendedPsuW !== "number" || !(specChoices.GPU?.recommendedPsuW ?? []).includes(String(rawSpecs.recommendedPsuW))
+      || (rawSpecs.pcieVersion !== undefined && (typeof rawSpecs.pcieVersion !== "string" || !pcieChoices.includes(rawSpecs.pcieVersion)))
+    ) return { error: "invalid-specs" };
+  }
+  if (category.data === "STORAGE") {
+    const interfaces = specChoices.STORAGE?.interface ?? [];
+    const types = specChoices.STORAGE?.type ?? [];
+    const capacities = specChoices.STORAGE?.capacityGb ?? [];
+    if (
+      typeof rawSpecs.interface !== "string" || !interfaces.includes(rawSpecs.interface)
+      || typeof rawSpecs.type !== "string" || !types.includes(rawSpecs.type)
+      || (storageInterfaceRequiresSsd(String(rawSpecs.interface)) && rawSpecs.type !== "SSD")
+      || typeof rawSpecs.capacityGb !== "number" || !capacities.includes(String(rawSpecs.capacityGb))
+    ) return { error: "invalid-specs" };
+  }
+  if (category.data === "PSU") {
+    const wattages = specChoices.PSU?.wattageW ?? [];
+    const certifications = specChoices.PSU?.efficiencyRating ?? [];
+    const formFactors = specChoices.PSU?.formFactor ?? [];
+    if (
+      typeof rawSpecs.wattageW !== "number" || !wattages.includes(String(rawSpecs.wattageW))
+      || typeof rawSpecs.efficiencyRating !== "string" || !certifications.includes(rawSpecs.efficiencyRating)
+      || typeof rawSpecs.formFactor !== "string" || !formFactors.includes(rawSpecs.formFactor)
+      || typeof rawSpecs.activePfc !== "boolean"
+    ) return { error: "invalid-specs" };
+  }
+  if (category.data === "CASE") {
+    const motherboardFormats = specChoices.CASE?.formFactorSupport ?? [];
+    const psuFormats = specChoices.CASE?.psuFormFactors ?? [];
+    if (
+      !Array.isArray(rawSpecs.formFactorSupport) || rawSpecs.formFactorSupport.length === 0
+      || rawSpecs.formFactorSupport.some((format) => typeof format !== "string" || !motherboardFormats.includes(format))
+      || !Array.isArray(rawSpecs.psuFormFactors) || rawSpecs.psuFormFactors.length === 0
+      || rawSpecs.psuFormFactors.some((format) => typeof format !== "string" || !psuFormats.includes(format))
+    ) return { error: "invalid-specs" };
+  }
   if (category.data === "MOTHERBOARD") {
     if (typeof rawSpecs.socket !== "string") return { error: "invalid-specs" };
   }
   if (category.data === "CPU_COOLER") {
-    const sockets = rawSpecs.supportedSockets;
-    if (!Array.isArray(sockets) || sockets.length === 0 || sockets.some((socket) => typeof socket !== "string")) return { error: "invalid-specs" };
-    if (sockets.length > 1 && rawSpecs.socketAdapter !== true) return { error: "invalid-specs" };
+    const allSockets: readonly string[] = [...socketChoicesByManufacturer.Intel, ...socketChoicesByManufacturer.AMD];
+    const base = rawSpecs.socketBase;
+    const adapters = rawSpecs.adapterSockets;
+    if (typeof base !== "string" || (base !== "Genérico" && !allSockets.includes(base))) return { error: "invalid-specs" };
+    if (base === "Genérico") {
+      if (rawSpecs.socketAdapter === true || (Array.isArray(adapters) && adapters.length > 0)) return { error: "invalid-specs" };
+      delete rawSpecs.socketAdapter;
+      delete rawSpecs.adapterSockets;
+    } else {
+      if (typeof rawSpecs.socketAdapter !== "boolean") return { error: "invalid-specs" };
+      if (rawSpecs.socketAdapter === true) {
+        if (!Array.isArray(adapters) || adapters.length === 0 || adapters.some((socket) => typeof socket !== "string" || !allSockets.includes(socket) || socket === base)) return { error: "invalid-specs" };
+      } else if (Array.isArray(adapters) && adapters.length > 0) return { error: "invalid-specs" };
+    }
+    if (typeof rawSpecs.coolerType !== "string" || !(specChoices.CPU_COOLER?.coolerType ?? []).includes(rawSpecs.coolerType)) return { error: "invalid-specs" };
   }
   const specs = parseComponentSpecs(category.data, rawSpecs);
   if (!specs.success) return { error: "invalid-specs" };
@@ -135,7 +191,7 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
     p_specs: specs.data,
     p_lot_code: category.data === "RAM"
       ? fields.data.lotNoInformation === "true" ? "Sem Informação" : fields.data.lotCode
-      : fields.data.lotCode || null,
+      : category.data === "PSU" || category.data === "CASE" || category.data === "CPU_COOLER" ? null : fields.data.lotCode || null,
     p_quantity: fields.data.quantity,
     p_purchase_date: null,
     p_notes: fields.data.notes ?? "",

@@ -11,6 +11,7 @@ import {
   manufacturerChoices,
   specChoices,
   specFields,
+  storageInterfaceRequiresSsd,
 } from "@/lib/inventory/specs";
 import { generateComponentDescription } from "@/lib/inventory/description";
 
@@ -36,7 +37,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
   const [formState, formAction, isPending] = useActionState(action, { error: null });
   const formRef = useRef<HTMLFormElement>(null);
   const [category, setCategory] = useState<ComponentCategory>("CPU");
-  const [specValues, setSpecValues] = useState<Record<string, string>>({ integratedGraphics: "false" });
+  const [specValues, setSpecValues] = useState<Record<string, string>>({ integratedGraphics: "false", activePfc: "false" });
   const [manufacturer, setManufacturer] = useState("");
   const [socketPlatform, setSocketPlatform] = useState<"Intel" | "AMD" | "">("");
   const [model, setModel] = useState("");
@@ -71,14 +72,14 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
   function missingRequiredFields() {
     const requiredNames = [
       "manufacturer",
-      "model",
+      ...(category === "PSU" || category === "CASE" || category === "CPU_COOLER" ? [] : ["model"]),
       "quantity",
       ...(category === "RAM" && !lotNoInformation ? ["lotCode"] : []),
-      ...specFields[category].filter((field) => field.required).map((field) => `spec_${field.key}`),
+      ...specFields[category].filter((field) => isSpecFieldRequired(field)).map((field) => `spec_${field.key}`),
     ];
     return requiredNames.filter((name) => {
       if (name === "manufacturer") return !manufacturer.trim();
-      if (name === "model") return category !== "MOTHERBOARD" && category !== "RAM" && !model.trim();
+      if (name === "model") return category !== "MOTHERBOARD" && category !== "RAM" && category !== "STORAGE" && category !== "PSU" && category !== "CASE" && category !== "CPU_COOLER" && !model.trim();
       if (name === "quantity") return quantity.trim() === "" || !Number.isInteger(Number(quantity)) || Number(quantity) < 0;
       if (name === "lotCode") return !lotCode.trim();
       const field = specFields[category].find((item) => `spec_${item.key}` === name);
@@ -89,6 +90,14 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
       if (field?.type === "number-list") return value.split(",").map((item) => Number(item.trim())).filter((item) => Number.isFinite(item) && item > 0).length === 0;
       return !value;
     });
+  }
+
+  function isSpecFieldRequired(field: (typeof specFields)[ComponentCategory][number]) {
+    if (category !== "CPU_COOLER") return Boolean(field.required);
+    if (field.key === "socketBase") return true;
+    if (field.key === "socketAdapter") return specValues.socketBase !== "Genérico";
+    if (field.key === "adapterSockets") return specValues.socketBase !== "Genérico" && specValues.socketAdapter === "true";
+    return Boolean(field.required);
   }
 
   function storageInterfaceMax(option: string) {
@@ -118,13 +127,52 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
     const options = specChoices[category]?.[field.key];
     const listField = field.type === "text-list" || field.type === "number-list";
     const placeholder = field.hint;
-    const invalid = invalidFields.has(`spec_${field.key}`);
+    const invalid = isSpecFieldRequired(field) && invalidFields.has(`spec_${field.key}`);
     const inputClass = `h-12 w-full rounded-xl border bg-white px-3 font-normal ${invalid ? "border-[#b42318] ring-1 ring-[#b42318]" : "border-[#d9e2d8]"}`;
-    if (category === "CPU" && field.key === "integratedGraphics") {
+    if (category === "STORAGE" && field.key === "interface") {
+      return (
+        <select className={inputClass} name="spec_interface" aria-label={field.label} value={value} required onChange={(event) => {
+          updateSpecValue("interface", event.target.value);
+          if (storageInterfaceRequiresSsd(event.target.value)) updateSpecValue("type", "SSD");
+        }}>
+          <option value="">Selecione a interface</option>
+          {(specChoices.STORAGE?.interface ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      );
+    }
+    if (category === "STORAGE" && field.key === "type") {
+      const lockedToSsd = storageInterfaceRequiresSsd(specValues.interface ?? "");
+      return (
+        <>
+          {lockedToSsd ? <input type="hidden" name="spec_type" value="SSD" /> : null}
+          <select
+            className={inputClass}
+            name={lockedToSsd ? undefined : "spec_type"}
+            aria-label={field.label}
+            value={lockedToSsd ? "SSD" : value}
+            required
+            disabled={lockedToSsd}
+            onChange={(event) => updateSpecValue("type", event.target.value)}
+          >
+            <option value="">Selecione o tipo</option>
+            {(specChoices.STORAGE?.type ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </>
+      );
+    }
+    if (category === "STORAGE" && field.key === "capacityGb") {
+      return (
+        <select className={inputClass} name="spec_capacityGb" aria-label={field.label} value={value} required onChange={(event) => updateSpecValue("capacityGb", event.target.value)}>
+          <option value="">Selecione a capacidade</option>
+          {(specChoices.STORAGE?.capacityGb ?? []).map((option) => <option key={option} value={option}>{option} GB</option>)}
+        </select>
+      );
+    }
+    if ((category === "CPU" && field.key === "integratedGraphics") || (category === "PSU" && field.key === "activePfc")) {
       const checked = value === "true";
       return (
         <>
-          <input type="hidden" name="spec_integratedGraphics" value={checked ? "true" : value === "false" ? "false" : ""} />
+          <input type="hidden" name={`spec_${field.key}`} value={checked ? "true" : value === "false" ? "false" : ""} />
           <label className={`flex min-h-12 items-center gap-3 rounded-xl border px-3 font-normal ${invalid ? "border-[#b42318] ring-1 ring-[#b42318]" : "border-[#d9e2d8]"}`}>
             <input
               type="checkbox"
@@ -132,7 +180,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
               checked={checked}
               onChange={(event) => updateSpecValue(field.key, event.target.checked ? "true" : "false")}
             />
-            <span>Possui gráficos integrados</span>
+            <span>{category === "CPU" ? "Possui gráficos integrados" : "Possui PFC ativo"}</span>
           </label>
         </>
       );
@@ -254,72 +302,70 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
       );
     }
 
-    if (category === "CPU_COOLER" && field.key === "supportedSockets") {
-      const selected = value.split(",").map((item) => item.trim()).filter(Boolean);
-      const hasAdapter = specValues.socketAdapter === "true";
-      const primarySocket = selected[0] ?? "";
+    if (category === "CPU_COOLER" && field.key === "socketBase") {
       return (
-        <div className="grid gap-3">
-          <input type="hidden" name="spec_supportedSockets" value={selected.join(", ")} />
-          <select
-            className="h-12 w-full rounded-xl border border-[#d9e2d8] bg-white px-3 font-normal"
-            aria-label="Socket compatível"
-            value={primarySocket}
-            onChange={(event) => {
-              const next = event.target.value;
-              updateSpecValue("supportedSockets", [next, ...selected.slice(1).filter((socket) => socket !== next)].filter(Boolean).join(", "));
-            }}
-          >
-            <option value="">Selecione o socket compatível</option>
-            {allSocketChoices.map((socket) => <option key={socket} value={socket}>{socket}</option>)}
-          </select>
-          {hasAdapter ? (
-            <div role="group" aria-label="Sockets adicionais pelo adaptador" className="grid grid-cols-1 gap-2 rounded-xl border border-[#d9e2d8] p-3">
-              <p className="text-xs font-normal text-[#718276]">Selecione os sockets adicionais incluídos com o adaptador.</p>
-              {allSocketChoices.filter((socket) => socket !== primarySocket).map((socket) => (
-                <label key={socket} className="flex items-center gap-2 text-sm font-normal text-[#44594b]">
-                  <input
-                    type="checkbox"
-                    className="size-4 shrink-0 accent-[#315b3c]"
-                    checked={selected.includes(socket)}
-                    onChange={(event) => {
-                      const next = event.target.checked
-                        ? [...selected, socket]
-                        : selected.filter((item) => item !== socket);
-                      updateSpecValue("supportedSockets", next.join(", "));
-                    }}
-                  />
-                  <span>{socket}</span>
-                </label>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <select className={inputClass} name="spec_socketBase" aria-label={field.label} value={value} required onChange={(event) => {
+          const nextBase = event.target.value;
+          updateSpecValue("socketBase", nextBase);
+          if (nextBase === "Genérico") {
+            updateSpecValue("socketAdapter", "");
+            updateSpecValue("adapterSockets", "");
+          } else if (specValues.socketBase === "Genérico") {
+            updateSpecValue("socketAdapter", "");
+          }
+          if (nextBase && nextBase !== "Genérico") {
+            const adapterSockets = specValues.adapterSockets?.split(",").map((socket) => socket.trim()).filter((socket) => socket && socket !== nextBase) ?? [];
+            updateSpecValue("adapterSockets", adapterSockets.join(", "));
+          }
+        }}>
+          <option value="">Selecione o socket base</option>
+          <option value="Genérico">Genérico</option>
+          {allSocketChoices.map((socket) => <option key={socket} value={socket}>{socket}</option>)}
+        </select>
       );
     }
 
     if (category === "CPU_COOLER" && field.key === "socketAdapter") {
-      const checked = value === "true";
+      const generic = specValues.socketBase === "Genérico";
+      return (
+        <select className={inputClass} name={generic ? undefined : "spec_socketAdapter"} aria-label={field.label} value={generic ? "" : value} disabled={generic} required={!generic} onChange={(event) => {
+          updateSpecValue("socketAdapter", event.target.value);
+          if (event.target.value !== "true") updateSpecValue("adapterSockets", "");
+        }}>
+          <option value="">{generic ? "Não se aplica a cooler genérico" : "Selecione sim ou não"}</option>
+          <option value="true">Sim</option>
+          <option value="false">Não</option>
+        </select>
+      );
+    }
+
+    if (category === "CPU_COOLER" && field.key === "adapterSockets") {
+      const selected = value.split(",").map((item) => item.trim()).filter(Boolean);
+      const base = specValues.socketBase;
       return (
         <>
-          <input type="hidden" name="spec_socketAdapter" value={checked ? "true" : "false"} />
-          <label className="flex items-center gap-2 rounded-xl border border-[#d9e2d8] p-3 text-sm font-normal text-[#44594b]">
-            <input
-              type="checkbox"
-              className="size-4 accent-[#315b3c]"
-              checked={checked}
-              onChange={(event) => {
-                const enabled = event.target.checked;
-                updateSpecValue("socketAdapter", enabled ? "true" : "false");
-                if (!enabled) {
-                  const first = specValues.supportedSockets?.split(",").map((item) => item.trim()).filter(Boolean)[0] ?? "";
-                  updateSpecValue("supportedSockets", first);
-                }
-              }}
-            />
-            <span>O cooler possui adaptador para outros sockets</span>
-          </label>
+          <input type="hidden" name="spec_adapterSockets" value={selected.join(", ")} />
+          <div role="group" aria-label={field.label} className={`grid grid-cols-1 gap-2 rounded-xl border p-3 ${invalid ? "border-[#b42318] ring-1 ring-[#b42318]" : "border-[#d9e2d8]"}`}>
+            {allSocketChoices.filter((socket) => socket !== base).map((socket) => (
+              <label key={socket} className="flex items-center gap-2 text-sm font-normal text-[#44594b]">
+                <input type="checkbox" className="size-4 shrink-0 accent-[#315b3c]" checked={selected.includes(socket)} onChange={(event) => {
+                  const next = event.target.checked ? [...selected, socket] : selected.filter((item) => item !== socket);
+                  updateSpecValue("adapterSockets", next.join(", "));
+                }} />
+                <span>{socket}</span>
+              </label>
+            ))}
+          </div>
         </>
+      );
+    }
+
+    if (category === "CPU_COOLER" && field.key === "coolerType") {
+      return (
+        <select className={inputClass} name="spec_coolerType" aria-label={field.label} value={value} required onChange={(event) => updateSpecValue(field.key, event.target.value)}>
+          <option value="">Selecione o tipo</option>
+          {(options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
       );
     }
 
@@ -377,6 +423,15 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
         <select className={inputClass} name={`spec_${field.key}`} aria-label={field.label} value={value} required={field.required} onChange={(event) => updateSpecValue(field.key, event.target.value)}>
           <option value="">Selecione uma opção</option>
           {options.map((option) => <option key={option} value={option}>{option}{field.unit ? ` ${field.unit}` : ""}</option>)}
+        </select>
+      );
+    }
+
+    if (options?.length && (category === "GPU" || category === "PSU")) {
+      return (
+        <select className={inputClass} name={`spec_${field.key}`} aria-label={field.label} value={value} required={field.required} onChange={(event) => updateSpecValue(field.key, event.target.value)}>
+          <option value="">Selecione uma opção</option>
+          {options.map((option) => <option key={option} value={option}>{option}{field.unit ? ` ${field.unit}` : field.key === "vramGb" ? " GB" : ""}</option>)}
         </select>
       );
     }
@@ -446,7 +501,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
             onChange={(event) => {
               const nextCategory = event.target.value as ComponentCategory;
               setCategory(nextCategory);
-              setSpecValues(nextCategory === "CPU" ? { integratedGraphics: "false" } : {});
+              setSpecValues(nextCategory === "CPU" ? { integratedGraphics: "false" } : nextCategory === "PSU" ? { activePfc: "false" } : {});
               setManufacturer("");
               setSocketPlatform("");
               setModel("");
@@ -497,13 +552,13 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
               />}
               {showRequiredError("manufacturer")}
             </div>
-            {category !== "RAM" ? <div data-required-field="model" className={`grid gap-2 rounded-xl text-sm font-medium text-[#294333] ${invalidFields.has("model") ? "border border-[#b42318] p-3" : ""}`}>
+            {category !== "RAM" && category !== "STORAGE" && category !== "PSU" && category !== "CPU_COOLER" ? <div data-required-field="model" className={`grid gap-2 rounded-xl text-sm font-medium text-[#294333] ${invalidFields.has("model") ? "border border-[#b42318] p-3" : ""}`}>
               <label htmlFor="component-model">Modelo</label>
               <input
                 id="component-model"
                 className={`h-12 w-full rounded-xl border px-3 font-normal ${invalidFields.has("model") ? "border-[#b42318]" : "border-[#d9e2d8]"}`}
                 name="model"
-                required={category !== "MOTHERBOARD"}
+                required={category !== "MOTHERBOARD" && category !== "CASE"}
                 aria-invalid={invalidFields.has("model")}
                 maxLength={140}
                 autoComplete="off"
@@ -520,7 +575,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
               />
               {category === "CPU" && manufacturer === "Intel" ? <a className="w-fit text-xs font-medium text-[#426d35] underline underline-offset-2" href="https://www.intel.com/content/www/us/en/ark.html" rel="noreferrer" target="_blank">Consultar processadores no Intel ARK</a> : null}
               {category === "CPU" && manufacturer === "AMD" ? <a className="w-fit text-xs font-medium text-[#426d35] underline underline-offset-2" href="https://www.amd.com/en/products/specifications/processors.html" rel="noreferrer" target="_blank">Consultar lista oficial de processadores AMD</a> : null}
-              {category !== "MOTHERBOARD" ? showRequiredError("model") : null}
+              {category !== "MOTHERBOARD" && category !== "CASE" ? showRequiredError("model") : null}
             </div> : null}
           </div>
         </section>
@@ -535,17 +590,20 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
           </p>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-4">
-          {specFields[category].map((field) => (
+          {specFields[category].filter((field) => category !== "CPU_COOLER" || field.key !== "adapterSockets" || specValues.socketBase !== "Genérico" && specValues.socketAdapter === "true").map((field) => {
+            const required = isSpecFieldRequired(field);
+            return (
             <div
               key={field.key}
-              data-required-field={field.required ? `spec_${field.key}` : undefined}
-              className={`grid gap-2 text-sm font-medium text-[#294333] ${field.required && invalidFields.has(`spec_${field.key}`) ? "rounded-xl border border-[#b42318] p-3" : ""}`}
+              data-required-field={required ? `spec_${field.key}` : undefined}
+              className={`grid gap-2 text-sm font-medium text-[#294333] ${required && invalidFields.has(`spec_${field.key}`) ? "rounded-xl border border-[#b42318] p-3" : ""}`}
             >
-              <p>{field.label}{field.unit ? ` (${field.unit})` : ""} {field.required ? showRequiredError(`spec_${field.key}`) : null}</p>
+              <p>{field.label}{field.unit ? ` (${field.unit})` : ""} {required ? showRequiredError(`spec_${field.key}`) : null}</p>
               {renderSpecField(field)}
               {field.hint && field.type === "boolean" ? <span className="text-xs font-normal text-[#7b897f]">{field.hint}</span> : null}
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -562,7 +620,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
 
       <section>
         <h2 className="text-lg font-semibold text-[#153b2a]">Quantidade inicial</h2>
-        <p className="mt-1 text-sm leading-6 text-[#718276]">Informe quantas unidades existem.{category === "RAM" ? " Informe o lote ou marque Sem Informação." : category !== "CPU" && category !== "MOTHERBOARD" ? " O código de lote é opcional." : ""}</p>
+        <p className="mt-1 text-sm leading-6 text-[#718276]">Informe quantas unidades existem.{category === "RAM" ? " Informe o lote ou marque Sem Informação." : category !== "CPU" && category !== "MOTHERBOARD" && category !== "GPU" && category !== "STORAGE" && category !== "PSU" && category !== "CASE" && category !== "CPU_COOLER" ? " O código de lote é opcional." : ""}</p>
         <div className="mt-4 grid grid-cols-1 gap-4">
           <div data-required-field="quantity" className={`grid gap-2 rounded-xl text-sm font-medium text-[#294333] ${invalidFields.has("quantity") ? "border border-[#b42318] p-3" : ""}`}>
             <label htmlFor="component-quantity">Quantidade</label>
@@ -614,7 +672,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
               {showRequiredError("lotCode")}
             </div>
           ) : null}
-          {category !== "CPU" && category !== "MOTHERBOARD" && category !== "RAM" ? (
+          {category !== "CPU" && category !== "MOTHERBOARD" && category !== "RAM" && category !== "GPU" && category !== "STORAGE" && category !== "PSU" && category !== "CASE" && category !== "CPU_COOLER" ? (
             <div className="sm:col-span-2">
               <label className="flex items-center gap-2 text-sm font-medium text-[#294333]">
                 <input type="checkbox" className="size-4 accent-[#315b3c]" checked={showLotDetails} onChange={(event) => setShowLotDetails(event.target.checked)} />
