@@ -1,39 +1,27 @@
 import Link from "next/link";
 
-import { calculateBuildCapacity } from "@/lib/inventory/capacity";
 import { loadInventorySnapshot } from "@/lib/inventory/read";
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveProfile } from "@/lib/auth/profile";
 
-const categoryLabels: Record<string, string> = {
-  CPU: "CPU",
-  MOTHERBOARD: "Placa-mãe",
-  RAM: "RAM",
-  GPU: "GPU",
-  STORAGE: "Armazenamento",
-  PSU: "Fonte",
-  CASE: "Gabinete",
-  CPU_COOLER: "Cooler",
-};
-
 export default async function DashboardPage() {
   const profile = await requireActiveProfile();
   const [inventory, supabase] = await Promise.all([loadInventorySnapshot(), createClient()]);
-  const { data: builds, error: buildsError } = await supabase.from("builds").select("id, status");
-  const capacity = calculateBuildCapacity(inventory.components);
+  const { data: builds, error: buildsError } = await supabase
+    .from("builds")
+    .select("id, status")
+    .is("removed_at", null);
   const completeBuilds = (builds ?? []).filter((build) => build.status === "COMPLETED").length;
-  const incompleteBuilds = (builds ?? []).filter((build) => build.status === "INCOMPLETE").length;
-  const activeBuilds = (builds ?? []).filter((build) => ["DRAFT", "INCOMPLETE", "READY"].includes(build.status)).length;
-
-  const metrics = [
+  const incompleteBuilds = (builds ?? []).filter((build) => ["DRAFT", "INCOMPLETE"].includes(build.status)).length;
+  const inventoryMetrics = [
     ["Componentes cadastrados", inventory.components.length],
-    ["Unidades disponíveis", inventory.availableQuantity],
-    ["Unidades reservadas", inventory.reservedQuantity],
-    ["Builds completos", completeBuilds],
-    ["Builds incompletos", incompleteBuilds],
-    ["Builds em andamento", activeBuilds],
-    ["PCs montáveis agora", capacity.buildsNow],
-    ["Com compra de faltantes", capacity.buildsWithPurchases ?? "—"],
+    ["Componentes totais", inventory.totalQuantity],
+    ["Componentes disponíveis", inventory.availableQuantity],
+    ["Componentes reservados", inventory.reservedQuantity],
+  ];
+  const buildMetrics = [
+    ["Builds completas", completeBuilds],
+    ["Builds incompletas", incompleteBuilds],
   ];
 
   return (
@@ -53,32 +41,32 @@ export default async function DashboardPage() {
 
       {inventory.error || buildsError ? <p role="alert" className="mt-6 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">Alguns dados do painel não puderam ser carregados.</p> : null}
 
-      <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map(([label, value]) => (
+      <section aria-labelledby="inventory-summary-heading" className="mt-7 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
+        <h2 id="inventory-summary-heading" className="text-xl font-semibold text-[#153b2a]">Resumo do estoque</h2>
+        <div className="mt-4 overflow-hidden rounded-2xl border border-[#e4ebe0]">
+          <table className="w-full text-left">
+            <tbody>
+              {inventoryMetrics.map(([label, value]) => (
+                <tr key={label} className="border-b border-[#e8eee5] last:border-b-0">
+                  <th scope="row" className="px-4 py-4 text-sm font-medium text-[#607266] sm:px-5">{label}</th>
+                  <td className="px-4 py-4 text-right text-lg font-semibold tabular-nums text-[#153b2a] sm:px-5">{value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-label="Resumo das montagens" className="mt-5 grid gap-4 sm:grid-cols-2">
+        {buildMetrics.map(([label, value]) => (
           <article key={label} className="rounded-2xl border border-[#dce6d8] bg-white p-5 shadow-sm">
             <p className="text-sm text-[#718276]">{label}</p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-[#153b2a]">{value}</p>
+            <p className="mt-3 text-3xl font-semibold tracking-tight tabular-nums text-[#153b2a]">{value}</p>
           </article>
         ))}
       </section>
 
-      <div className="mt-7 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-[#5da52f]">Planejamento</p>
-              <h2 className="mt-2 text-xl font-semibold text-[#153b2a]">O que posso montar?</h2>
-              <p className="mt-2 max-w-lg leading-7 text-[#65766a]">
-                {capacity.bottleneck
-                  ? `Gargalo estimado: ${categoryLabels[capacity.bottleneck] ?? capacity.bottleneck}. O cálculo confere compatibilidade, lotes e saldo disponível.`
-                  : "Cadastre componentes e lotes reais para identificar combinações e gargalos."}
-              </p>
-            </div>
-            <span className="hidden size-11 items-center justify-center rounded-2xl bg-[#eaf1e4] text-xl text-[#4b7b3b] sm:flex" aria-hidden="true">↗</span>
-          </div>
-          <Link href="/what-can-i-build" className="mt-5 inline-flex h-10 items-center rounded-xl border border-[#cdddc7] px-4 text-sm font-semibold text-[#315b3c] hover:bg-[#f5f7f2]">Ver combinações</Link>
-        </section>
-
+      <div className="mt-5">
         <section className="rounded-3xl bg-[#153b2a] p-6 text-white shadow-sm sm:p-8">
           <p className="text-sm font-semibold text-[#a7d77e]">Acesso rápido</p>
           <h2 className="mt-2 text-xl font-semibold">Continue o trabalho</h2>
@@ -86,7 +74,6 @@ export default async function DashboardPage() {
             <Link href="/estoque" className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#153b2a] hover:bg-[#eef5e9]">Ver estoque</Link>
             <Link href="/builds/new" className="rounded-xl border border-white/25 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10">Novo build</Link>
           </div>
-          <p className="mt-6 border-t border-white/15 pt-4 text-sm text-white/65">{inventory.totalQuantity} unidades registradas · {inventory.usedQuantity} já utilizadas</p>
         </section>
       </div>
     </div>

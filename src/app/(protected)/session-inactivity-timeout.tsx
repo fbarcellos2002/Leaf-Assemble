@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 const idleTimeoutMs = 30 * 60 * 1000;
 const activityKeyPrefix = "leaf-assemble:last-activity:";
 const tabSessionKey = "leaf-assemble:tab-session";
+const tabExitKeyPrefix = "leaf-assemble:tab-exit:";
 
 export function SessionInactivityTimeout({ authUserId }: { authUserId: string }) {
   const router = useRouter();
@@ -14,6 +15,38 @@ export function SessionInactivityTimeout({ authUserId }: { authUserId: string })
     const key = `${activityKeyPrefix}${authUserId}`;
     let timer = 0;
     let lastWrite = 0;
+    const navigationType = (
+      performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined
+    )?.type;
+
+    function getTabSession() {
+      let tabSession = window.sessionStorage.getItem(tabSessionKey);
+      if (tabSession === "active") {
+        tabSession = window.crypto.randomUUID();
+        window.sessionStorage.setItem(tabSessionKey, tabSession);
+      }
+      return tabSession;
+    }
+
+    const tabSession = getTabSession();
+    if (!tabSession) {
+      router.replace("/auth/signout?reason=closed");
+      return;
+    }
+
+    const tabExitKey = `${tabExitKeyPrefix}${tabSession}`;
+
+    function signOutIfTabWasClosed() {
+      if (navigationType === "reload") {
+        window.localStorage.removeItem(tabExitKey);
+        return false;
+      }
+      if (window.localStorage.getItem(tabExitKey) !== null) {
+        router.replace("/auth/signout?reason=closed");
+        return true;
+      }
+      return false;
+    }
 
     function getLastActivity() {
       const stored = Number(window.localStorage.getItem(key));
@@ -50,9 +83,15 @@ export function SessionInactivityTimeout({ authUserId }: { authUserId: string })
       signOutIfIdle();
     }
 
-    if (!window.sessionStorage.getItem(tabSessionKey)) {
-      router.replace("/auth/signout?reason=closed");
-      return;
+    if (signOutIfTabWasClosed()) return;
+
+    function recordTabExit() {
+      window.localStorage.setItem(tabExitKey, String(Date.now()));
+    }
+
+    function restoreFromPageCache() {
+      if (signOutIfTabWasClosed()) return;
+      signOutIfIdle();
     }
 
     if (!window.localStorage.getItem(key)) {
@@ -64,7 +103,8 @@ export function SessionInactivityTimeout({ authUserId }: { authUserId: string })
     activityEvents.forEach((event) => window.addEventListener(event, recordActivity, { passive: true }));
     window.addEventListener("storage", syncActivity);
     window.addEventListener("focus", signOutIfIdle);
-    window.addEventListener("pageshow", signOutIfIdle);
+    window.addEventListener("pageshow", restoreFromPageCache);
+    window.addEventListener("pagehide", recordTabExit);
     document.addEventListener("visibilitychange", signOutIfIdle);
 
     return () => {
@@ -72,7 +112,8 @@ export function SessionInactivityTimeout({ authUserId }: { authUserId: string })
       activityEvents.forEach((event) => window.removeEventListener(event, recordActivity));
       window.removeEventListener("storage", syncActivity);
       window.removeEventListener("focus", signOutIfIdle);
-      window.removeEventListener("pageshow", signOutIfIdle);
+      window.removeEventListener("pageshow", restoreFromPageCache);
+      window.removeEventListener("pagehide", recordTabExit);
       document.removeEventListener("visibilitychange", signOutIfIdle);
     };
   }, [authUserId, router]);

@@ -19,7 +19,6 @@ const navigation = [
   { href: "/dashboard", label: "Visão geral", icon: "◫" },
   { href: "/estoque", label: "Estoque", icon: "▦" },
   { href: "/builds", label: "Montar", icon: "▣" },
-  { href: "/what-can-i-build", label: "O que posso montar?", icon: "⌕" },
   { href: "/usuarios", label: "Usuários", icon: "♙" },
 ];
 
