@@ -1,11 +1,12 @@
 import { requireAdminProfile } from "@/lib/auth/profile";
 import { createClient } from "@/lib/supabase/server";
 import { socketChoicesByManufacturer as defaultSocketChoices } from "@/lib/inventory/specs";
+import Link from "next/link";
 
 import { createComponent } from "../actions";
 import { ComponentForm } from "../component-form";
 
-type Props = { searchParams: Promise<{ error?: string }> };
+type Props = { searchParams: Promise<{ error?: string; created?: string }> };
 
 const errors: Record<string, string> = {
   "invalid-input": "Confira os campos obrigatórios e os valores informados.",
@@ -15,7 +16,7 @@ const errors: Record<string, string> = {
 
 export default async function NewComponentPage({ searchParams }: Props) {
   await requireAdminProfile();
-  const { error } = await searchParams;
+  const { error, created } = await searchParams;
   const supabase = await createClient();
   const { data: socketRows } = await supabase
     .from("socket_catalog")
@@ -40,10 +41,22 @@ export default async function NewComponentPage({ searchParams }: Props) {
       <p className="mt-2 max-w-2xl leading-7 text-[#607266]">
         Registre os dados conhecidos. A compatibilidade tratará informações ausentes como desconhecidas, sem presumir que a peça funciona.
       </p>
-      {error ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">{errors[error] ?? "Não foi possível cadastrar o componente."}</p> : null}
-      <section className="mt-7 rounded-3xl border border-[#dce6d8] bg-white p-6 shadow-sm sm:p-8">
-        <ComponentForm action={createComponent} socketChoicesByManufacturer={socketChoices} />
-      </section>
+      {created === "1" ? (
+        <section className="mt-7 rounded-3xl border border-[#b9d7ad] bg-[#f1f8ed] p-6 shadow-sm sm:p-8">
+          <p role="status" className="text-lg font-semibold text-[#28613a]">
+            Componente cadastrado com sucesso, deseja cadastrar mais algum?
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href="/estoque/novo" className="inline-flex h-11 items-center rounded-xl bg-[#2f713b] px-5 font-semibold text-white hover:bg-[#255f31]">Cadastrar outro componente</Link>
+            <Link href="/estoque" className="inline-flex h-11 items-center rounded-xl border border-[#b9d7ad] bg-white px-5 font-semibold text-[#315b3c] hover:bg-[#f5f7f2]">Retornar ao estoque</Link>
+          </div>
+        </section>
+      ) : (
+        <>
+          {error ? <p role="alert" className="mt-5 rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">{errors[error] ?? "Não foi possível cadastrar o componente."}</p> : null}
+          <ComponentForm action={createComponent} socketChoicesByManufacturer={socketChoices} />
+        </>
+      )}
     </div>
   );
 }

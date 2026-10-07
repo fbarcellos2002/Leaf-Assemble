@@ -58,6 +58,16 @@ export function generateComponentDescription(
 ) {
   const cleanManufacturer = manufacturer.trim();
   const cleanName = name.trim();
+  if (category === "CPU") {
+    const cores = typeof specs.cores === "number" && Number.isFinite(specs.cores) ? `${specs.cores} Núcleos` : undefined;
+    const threads = typeof specs.threads === "number" && Number.isFinite(specs.threads) ? `${specs.threads} Threads` : undefined;
+    const counts = [cores, threads].filter(Boolean).join(" / ");
+    return [
+      [cleanManufacturer, cleanName].filter(Boolean).join(" "),
+      counts,
+      text(specs, "socket"),
+    ].filter(Boolean).join(" | ");
+  }
   if (category === "GPU") {
     return [cleanName, ...summary(category, specs)].filter((part): part is string => Boolean(part?.trim())).join(" - ");
   }

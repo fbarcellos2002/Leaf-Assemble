@@ -20,7 +20,7 @@ type InventoryComponent = {
 };
 
 const labels: Record<string, string> = {
-  CPU: "CPU",
+  CPU: "Processador",
   MOTHERBOARD: "Placa-mãe",
   RAM: "RAM",
   GPU: "GPU",

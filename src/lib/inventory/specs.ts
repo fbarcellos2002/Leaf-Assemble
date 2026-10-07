@@ -27,6 +27,44 @@ export const socketChoicesByManufacturer = {
   ],
 } as const;
 
+export const processorGenerationsBySocket = {
+  Intel: {
+    "LGA 1851": "Core Ultra 200S",
+    "LGA 1700": "12ª, 13ª e 14ª geração (varia por placa-mãe)",
+    "LGA 2066": "Core X de 7ª a 10ª geração",
+    "LGA 2011-v3": "Core X de 4ª e 5ª geração",
+    "LGA 2011": "Core X de 2ª e 3ª geração",
+    "LGA 1366": "Core de 1ª geração",
+    "LGA 1200": "10ª e 11ª geração",
+    "LGA 1156": "Core de 1ª geração",
+    "LGA 1155": "2ª e 3ª geração",
+    "LGA 1151": "6ª e 7ª ou 8ª e 9ª geração (varia por chipset)",
+    "LGA 1150": "4ª e 5ª geração",
+    "LGA 775": "Core 2, Pentium e Celeron (varia por chipset)",
+  },
+  AMD: {
+    AM5: "Ryzen 7000, 8000 e 9000",
+    AM4: "Ryzen 1000 a 5000 (varia por placa-mãe e BIOS)",
+    sTR5: "Threadripper 7000 e 9000",
+    sTRX4: "Threadripper 3000",
+    TR4: "Threadripper 1000 e 2000",
+    sWRX8: "Threadripper Pro 3000WX e 5000WX",
+    "AM3+": "AMD FX",
+    AM3: "Phenom II e Athlon II",
+    "AM2+": "Phenom e Athlon 64 (varia por placa-mãe)",
+    AM2: "Athlon 64, Athlon X2 e Phenom (varia por placa-mãe)",
+    AM1: "Athlon e Sempron (Kabini)",
+    "FM2+": "A-Series (Kaveri e Godavari)",
+    FM2: "A-Series (Trinity e Richland)",
+    FM1: "A-Series (Llano)",
+  },
+} as const;
+
+export function getProcessorGeneration(manufacturer: string, socket: string) {
+  if (manufacturer !== "Intel" && manufacturer !== "AMD") return undefined;
+  return processorGenerationsBySocket[manufacturer][socket as keyof (typeof processorGenerationsBySocket)[typeof manufacturer]];
+}
+
 export const allSocketChoices = [
   ...socketChoicesByManufacturer.Intel,
   ...socketChoicesByManufacturer.AMD,
@@ -120,24 +158,26 @@ export type SpecField = {
   type: "text" | "number" | "boolean" | "text-list" | "number-list";
   unit?: string;
   hint?: string;
+  required?: boolean;
+  min?: number;
 };
 
 export const specFields: Record<ComponentCategory, SpecField[]> = {
   CPU: [
-    { key: "generation", label: "Geração do processador", type: "text", hint: "Ex.: 13ª geração, Ryzen 5000" },
-    { key: "socket", label: "Socket", type: "text", hint: "Informe apenas o número do socket" },
-    { key: "cores", label: "Núcleos", type: "number" },
-    { key: "threads", label: "Threads", type: "number" },
-    { key: "baseClockMhz", label: "Clock base", type: "number", unit: "MHz" },
+    { key: "socket", label: "Socket", type: "text", required: true },
+    { key: "generation", label: "Geração de processador", type: "text", required: true, hint: "Preenchida automaticamente pelo socket selecionado" },
+    { key: "cores", label: "Núcleos", type: "number", required: true, min: 1 },
+    { key: "threads", label: "Threads", type: "number", required: true, min: 1 },
+    { key: "baseClockMhz", label: "Clock Base", type: "number", unit: "MHz" },
     { key: "boostClockMhz", label: "Clock boost", type: "number", unit: "MHz" },
     { key: "tdpW", label: "TDP", type: "number", unit: "W" },
-    { key: "integratedGraphics", label: "Gráficos integrados", type: "boolean" },
-    { key: "memoryTypes", label: "Tipos de memória", type: "text-list", hint: "Separe por vírgula: DDR4, DDR5" },
+    { key: "integratedGraphics", label: "Gráficos integrados", type: "boolean", required: true },
+    { key: "memoryTypes", label: "Tipos de memória", type: "text-list", required: true, hint: "Selecione os tipos de memória suportados" },
     { key: "maxMemoryFrequencyMhz", label: "Frequência máxima de memória", type: "number", unit: "MHz" },
     { key: "maxMemoryCapacityGb", label: "Memória máxima", type: "number", unit: "GB" },
   ],
   MOTHERBOARD: [
-    { key: "socket", label: "Socket", type: "text", hint: "Informe apenas o número do socket" },
+    { key: "socket", label: "Socket", type: "text", required: true },
     { key: "pcieVersion", label: "Versão PCI Express", type: "text", hint: "Ex.: PCIe 4.0" },
     { key: "chipset", label: "Chipset", type: "text" },
     { key: "formFactor", label: "Formato", type: "text", hint: "Ex.: ATX, Micro-ATX" },
@@ -178,7 +218,7 @@ export const specFields: Record<ComponentCategory, SpecField[]> = {
     { key: "psuFormFactors", label: "Formatos de fonte", type: "text-list", hint: "Ex.: ATX, SFX" },
   ],
   CPU_COOLER: [
-    { key: "supportedSockets", label: "Sockets compatíveis", type: "text-list", hint: "Separe por vírgula" },
+    { key: "supportedSockets", label: "Sockets compatíveis", type: "text-list", required: true, hint: "Separe por vírgula" },
     { key: "socketAdapter", label: "Adaptador", type: "boolean" },
     { key: "formFactor", label: "Formato", type: "text" },
   ],

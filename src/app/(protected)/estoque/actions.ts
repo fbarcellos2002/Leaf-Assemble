@@ -8,10 +8,12 @@ import { requireAdminProfile } from "@/lib/auth/profile";
 import { generateComponentDescription } from "@/lib/inventory/description";
 import {
   componentCategorySchema,
+  getProcessorGeneration,
   manufacturerChoices,
   parseComponentSpecs,
   parseSpecFormValue,
   specFields,
+  socketChoicesByManufacturer,
 } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
@@ -44,7 +46,21 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
     if (value !== undefined) rawSpecs[field.key] = value;
   }
   if (category.data === "CPU") {
-    if (typeof rawSpecs.socket !== "string") return { error: "invalid-specs" };
+    const processorSockets: readonly string[] = fields.data.manufacturer === "Intel"
+      ? socketChoicesByManufacturer.Intel
+      : fields.data.manufacturer === "AMD" ? socketChoicesByManufacturer.AMD : [];
+    const generation = typeof rawSpecs.socket === "string"
+      ? getProcessorGeneration(fields.data.manufacturer, rawSpecs.socket)
+      : undefined;
+    if (
+      !generation
+      || rawSpecs.generation !== generation
+      || !processorSockets.includes(rawSpecs.socket as string)
+      || typeof rawSpecs.cores !== "number" || !Number.isInteger(rawSpecs.cores) || rawSpecs.cores < 1
+      || typeof rawSpecs.threads !== "number" || !Number.isInteger(rawSpecs.threads) || rawSpecs.threads < 1
+      || typeof rawSpecs.integratedGraphics !== "boolean"
+      || !Array.isArray(rawSpecs.memoryTypes) || rawSpecs.memoryTypes.length === 0
+    ) return { error: "invalid-specs" };
   }
   if (category.data === "MOTHERBOARD") {
     if (typeof rawSpecs.socket !== "string") return { error: "invalid-specs" };
@@ -82,7 +98,7 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
 
   if (error || !componentId) return { error: "save-failed" };
   revalidatePath("/estoque");
-  redirect(`/estoque/${componentId}?notice=created`);
+  redirect("/estoque/novo?created=1");
 }
 
 const receiveStockSchema = z.object({

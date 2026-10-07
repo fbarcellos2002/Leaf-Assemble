@@ -15,7 +15,7 @@ type Props = {
 };
 
 const categoryLabels: Record<string, string> = {
-  CPU: "Processador (CPU)",
+  CPU: "Processador",
   MOTHERBOARD: "Placa-mãe",
   RAM: "Memória RAM",
   GPU: "Placa de vídeo (GPU)",
