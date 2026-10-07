@@ -68,6 +68,21 @@ export function generateComponentDescription(
       text(specs, "socket"),
     ].filter(Boolean).join(" | ");
   }
+  if (category === "MOTHERBOARD") {
+    return [cleanManufacturer, text(specs, "socket"), text(specs, "formFactor")]
+      .filter((part): part is string => Boolean(part?.trim()))
+      .join(" | ");
+  }
+  if (category === "RAM") {
+    const capacity = number(specs, "capacityGb", "GB");
+    const memoryType = text(specs, "memoryType");
+    const frequency = typeof specs.frequencyMhz === "number" && Number.isFinite(specs.frequencyMhz) && specs.frequencyMhz >= 0
+      ? `${specs.frequencyMhz} Mhz`
+      : undefined;
+    return [cleanManufacturer, capacity, memoryType, frequency]
+      .filter((part): part is string => Boolean(part?.trim()))
+      .join(" | ");
+  }
   if (category === "GPU") {
     return [cleanName, ...summary(category, specs)].filter((part): part is string => Boolean(part?.trim())).join(" - ");
   }

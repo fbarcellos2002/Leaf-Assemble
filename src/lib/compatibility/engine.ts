@@ -27,7 +27,7 @@ const stringsValue = (value: unknown) =>
   Array.isArray(value) && value.every((item) => typeof item === "string")
     ? value as string[]
     : undefined;
-const normalized = (value: string) => value.trim().toLocaleLowerCase("pt-BR");
+const normalized = (value: string) => value.trim().toLocaleLowerCase("pt-BR").replace("micro-atx", "m-atx");
 export function storageInterfaceSupported(storageInterface: string, supportedInterfaces: string[]) {
   const requested = normalized(storageInterface);
   return supportedInterfaces.some((item) => {

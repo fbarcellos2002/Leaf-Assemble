@@ -43,6 +43,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
   const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set());
   const [quantity, setQuantity] = useState("");
   const [lotCode, setLotCode] = useState("");
+  const [lotNoInformation, setLotNoInformation] = useState(false);
   const [lotNotes, setLotNotes] = useState("");
   const [showLotDetails, setShowLotDetails] = useState(false);
 
@@ -64,7 +65,6 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
     });
     if (category === "CPU") {
       setSpecValues((current) => ({ ...current, socket: "", generation: "" }));
-      setInvalidFields((current) => new Set(current).add("spec_socket").add("spec_generation"));
     }
   }
 
@@ -73,19 +73,26 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
       "manufacturer",
       "model",
       "quantity",
+      ...(category === "RAM" && !lotNoInformation ? ["lotCode"] : []),
       ...specFields[category].filter((field) => field.required).map((field) => `spec_${field.key}`),
     ];
     return requiredNames.filter((name) => {
       if (name === "manufacturer") return !manufacturer.trim();
-      if (name === "model") return !model.trim();
+      if (name === "model") return category !== "MOTHERBOARD" && category !== "RAM" && !model.trim();
       if (name === "quantity") return quantity.trim() === "" || !Number.isInteger(Number(quantity)) || Number(quantity) < 0;
+      if (name === "lotCode") return !lotCode.trim();
       const field = specFields[category].find((item) => `spec_${item.key}` === name);
       const value = specValues[field?.key ?? ""]?.trim() ?? "";
       if (field?.type === "boolean") return value !== "true" && value !== "false";
       if (field?.type === "text-list") return value.split(",").map((item) => item.trim()).filter(Boolean).length === 0;
-      if (field?.type === "number") return !value || !Number.isFinite(Number(value)) || Number(value) < (field.min ?? 0);
+      if (field?.type === "number") return !value || !Number.isFinite(Number(value)) || Number(value) < (field.min ?? 0) || (field.key === "maxMemoryGb" && !Number.isInteger(Number(value)));
+      if (field?.type === "number-list") return value.split(",").map((item) => Number(item.trim())).filter((item) => Number.isFinite(item) && item > 0).length === 0;
       return !value;
     });
+  }
+
+  function storageInterfaceMax(option: string) {
+    return option.startsWith("M.2") ? 7 : option.startsWith("PCIe") ? 7 : 12;
   }
 
   function showRequiredError(name: string) {
@@ -126,6 +133,23 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
               onChange={(event) => updateSpecValue(field.key, event.target.checked ? "true" : "false")}
             />
             <span>Possui gráficos integrados</span>
+          </label>
+        </>
+      );
+    }
+    if (category === "RAM" && field.key === "ecc") {
+      const checked = value === "true";
+      return (
+        <>
+          <input type="hidden" name="spec_ecc" value={checked ? "true" : "false"} />
+          <label className={`flex min-h-12 items-center gap-3 rounded-xl border px-3 font-normal ${invalid ? "border-[#b42318] ring-1 ring-[#b42318]" : "border-[#d9e2d8]"}`}>
+            <input
+              type="checkbox"
+              className="size-4 accent-[#315b3c]"
+              checked={checked}
+              onChange={(event) => updateSpecValue(field.key, event.target.checked ? "true" : "false")}
+            />
+            <span>Possui ECC</span>
           </label>
         </>
       );
@@ -178,6 +202,55 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
             {sockets.map((socket) => <option key={socket} value={socket}>{socket}</option>)}
           </select>
         </div>
+      );
+    }
+
+    if (category === "MOTHERBOARD" && field.key === "storageInterfaces") {
+      const selected = value.split(",").map((item) => item.trim()).filter(Boolean);
+      const interfaces = specChoices.MOTHERBOARD?.storageInterfaces ?? [];
+      return (
+        <>
+          <input type="hidden" name="spec_storageInterfaces" value={selected.join(", ")} />
+          <div role="group" aria-label={field.label} className={`grid gap-2 rounded-xl border p-3 ${invalid ? "border-[#b42318] ring-1 ring-[#b42318]" : "border-[#d9e2d8]"}`}>
+            {interfaces.map((option) => {
+              const checked = selected.includes(option);
+              const countKey = `storageInterfaceCount:${option}`;
+              return (
+                <div key={option} className="flex min-h-10 items-center gap-3 text-sm font-normal text-[#44594b]">
+                  <label className="flex min-w-0 flex-1 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="size-4 shrink-0 accent-[#315b3c]"
+                      checked={checked}
+                      onChange={(event) => {
+                        const next = event.target.checked ? [...selected, option] : selected.filter((item) => item !== option);
+                        updateSpecValue(field.key, next.join(", "));
+                        if (!event.target.checked) updateSpecValue(countKey, "");
+                        else if (!specValues[countKey]) updateSpecValue(countKey, "1");
+                      }}
+                    />
+                    <span>{option}</span>
+                  </label>
+                  {checked ? (
+                    <>
+                      <span className="text-xs text-[#718276]">Quantidade</span>
+                      <select
+                        className="h-9 w-20 rounded-lg border border-[#d9e2d8] bg-white px-2"
+                        aria-label={`Quantidade de ${option}`}
+                        name={`spec_storageInterfaceCount_${interfaces.indexOf(option)}`}
+                        value={specValues[countKey] ?? "1"}
+                        required
+                        onChange={(event) => updateSpecValue(countKey, event.target.value)}
+                      >
+                        {Array.from({ length: storageInterfaceMax(option) }, (_, index) => String(index + 1)).map((count) => <option key={count} value={count}>{count}</option>)}
+                      </select>
+                    </>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </>
       );
     }
 
@@ -250,6 +323,19 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
       );
     }
 
+    if (category === "MOTHERBOARD" && field.key === "supportedMemoryFrequenciesMhz") {
+      const selectedValue = value.split(",").map((item) => item.trim()).filter(Boolean)[0] ?? "";
+      return (
+        <>
+          <input type="hidden" name={`spec_${field.key}`} value={selectedValue} />
+          <select className={inputClass} aria-label={field.label} value={selectedValue} required={field.required} onChange={(event) => updateSpecValue(field.key, event.target.value)}>
+            <option value="">Selecione uma frequência</option>
+            {(options ?? []).map((option) => <option key={option} value={option}>{option} {field.unit}</option>)}
+          </select>
+        </>
+      );
+    }
+
     if (options?.length && listField) {
       const selected = value.split(",").map((item) => item.trim()).filter(Boolean);
       return (
@@ -277,6 +363,24 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
       );
     }
 
+    if (options?.length && category === "MOTHERBOARD") {
+      return (
+        <select className={inputClass} name={`spec_${field.key}`} aria-label={field.label} value={value} required={field.required} onChange={(event) => updateSpecValue(field.key, event.target.value)}>
+          <option value="">Selecione uma opção</option>
+          {options.map((option) => <option key={option} value={option}>{option}{field.unit ? ` ${field.unit}` : ""}</option>)}
+        </select>
+      );
+    }
+
+    if (options?.length && category === "RAM") {
+      return (
+        <select className={inputClass} name={`spec_${field.key}`} aria-label={field.label} value={value} required={field.required} onChange={(event) => updateSpecValue(field.key, event.target.value)}>
+          <option value="">Selecione uma opção</option>
+          {options.map((option) => <option key={option} value={option}>{option}{field.unit ? ` ${field.unit}` : ""}</option>)}
+        </select>
+      );
+    }
+
     const datalistId = `options-${category}-${field.key}`;
     return (
       <>
@@ -286,7 +390,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
           aria-label={field.label}
           type={field.type === "number" ? "number" : "text"}
           min={field.type === "number" ? String(field.min ?? 0) : undefined}
-          step={field.type === "number" ? "any" : undefined}
+          step={field.type === "number" ? field.key === "maxMemoryGb" ? "1" : "any" : undefined}
           required={field.required}
           readOnly={category === "CPU" && field.key === "generation"}
           inputMode={field.type === "number" || field.type === "number-list" ? "decimal" : "text"}
@@ -326,7 +430,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
       {formState.error ? (
         <p role="alert" className="rounded-xl bg-[#fff5f3] px-4 py-3 text-sm text-[#8d3c32]">
           {formState.error === "invalid-input"
-            ? "Confira o nome, o fabricante e a quantidade. Os dados preenchidos foram mantidos."
+            ? "Confira os campos obrigatórios e os valores informados. Os dados preenchidos foram mantidos."
             : formState.error === "invalid-specs"
               ? "Revise as especificações técnicas. Os dados preenchidos foram mantidos."
               : "Não foi possível cadastrar a peça. Os dados preenchidos foram mantidos; tente novamente."}
@@ -348,6 +452,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
               setModel("");
               setQuantity("");
               setLotCode("");
+              setLotNoInformation(false);
               setLotNotes("");
               setShowLotDetails(false);
               setInvalidFields(new Set());
@@ -392,13 +497,13 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
               />}
               {showRequiredError("manufacturer")}
             </div>
-            <div data-required-field="model" className={`grid gap-2 rounded-xl text-sm font-medium text-[#294333] ${invalidFields.has("model") ? "border border-[#b42318] p-3" : ""}`}>
+            {category !== "RAM" ? <div data-required-field="model" className={`grid gap-2 rounded-xl text-sm font-medium text-[#294333] ${invalidFields.has("model") ? "border border-[#b42318] p-3" : ""}`}>
               <label htmlFor="component-model">Modelo</label>
               <input
                 id="component-model"
                 className={`h-12 w-full rounded-xl border px-3 font-normal ${invalidFields.has("model") ? "border-[#b42318]" : "border-[#d9e2d8]"}`}
                 name="model"
-                required
+                required={category !== "MOTHERBOARD"}
                 aria-invalid={invalidFields.has("model")}
                 maxLength={140}
                 autoComplete="off"
@@ -415,8 +520,8 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
               />
               {category === "CPU" && manufacturer === "Intel" ? <a className="w-fit text-xs font-medium text-[#426d35] underline underline-offset-2" href="https://www.intel.com/content/www/us/en/ark.html" rel="noreferrer" target="_blank">Consultar processadores no Intel ARK</a> : null}
               {category === "CPU" && manufacturer === "AMD" ? <a className="w-fit text-xs font-medium text-[#426d35] underline underline-offset-2" href="https://www.amd.com/en/products/specifications/processors.html" rel="noreferrer" target="_blank">Consultar lista oficial de processadores AMD</a> : null}
-              {showRequiredError("model")}
-            </div>
+              {category !== "MOTHERBOARD" ? showRequiredError("model") : null}
+            </div> : null}
           </div>
         </section>
 
@@ -457,7 +562,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
 
       <section>
         <h2 className="text-lg font-semibold text-[#153b2a]">Quantidade inicial</h2>
-        <p className="mt-1 text-sm leading-6 text-[#718276]">Informe quantas unidades existem.{category !== "CPU" ? " O código de lote é opcional." : ""}</p>
+        <p className="mt-1 text-sm leading-6 text-[#718276]">Informe quantas unidades existem.{category === "RAM" ? " Informe o lote ou marque Sem Informação." : category !== "CPU" && category !== "MOTHERBOARD" ? " O código de lote é opcional." : ""}</p>
         <div className="mt-4 grid grid-cols-1 gap-4">
           <div data-required-field="quantity" className={`grid gap-2 rounded-xl text-sm font-medium text-[#294333] ${invalidFields.has("quantity") ? "border border-[#b42318] p-3" : ""}`}>
             <label htmlFor="component-quantity">Quantidade</label>
@@ -471,7 +576,45 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
             }} required />
             {showRequiredError("quantity")}
           </div>
-          {category !== "CPU" ? (
+          {category === "RAM" ? (
+            <div data-required-field="lotCode" className={`grid gap-3 rounded-xl text-sm font-medium text-[#294333] ${invalidFields.has("lotCode") ? "border border-[#b42318] p-3" : ""}`}>
+              <label htmlFor="component-lot-code">Lote</label>
+              <input type="hidden" name="lotNoInformation" value={lotNoInformation ? "true" : "false"} />
+              {lotNoInformation ? (
+                <input type="hidden" name="lotCode" value="Sem Informação" />
+              ) : (
+                <input
+                  id="component-lot-code"
+                  className={`h-12 w-full rounded-xl border px-3 font-normal ${invalidFields.has("lotCode") ? "border-[#b42318]" : "border-[#d9e2d8]"}`}
+                  name="lotCode"
+                  maxLength={80}
+                  value={lotCode}
+                  required
+                  onChange={(event) => {
+                    setLotCode(event.target.value);
+                    setInvalidFields((current) => {
+                      const next = new Set(current);
+                      next.delete("lotCode");
+                      return next;
+                    });
+                  }}
+                />
+              )}
+              <label className="flex items-center gap-2 text-sm font-normal text-[#44594b]">
+                <input type="checkbox" className="size-4 accent-[#315b3c]" checked={lotNoInformation} onChange={(event) => {
+                  setLotNoInformation(event.target.checked);
+                  setInvalidFields((current) => {
+                    const next = new Set(current);
+                    next.delete("lotCode");
+                    return next;
+                  });
+                }} />
+                Sem Informação
+              </label>
+              {showRequiredError("lotCode")}
+            </div>
+          ) : null}
+          {category !== "CPU" && category !== "MOTHERBOARD" && category !== "RAM" ? (
             <div className="sm:col-span-2">
               <label className="flex items-center gap-2 text-sm font-medium text-[#294333]">
                 <input type="checkbox" className="size-4 accent-[#315b3c]" checked={showLotDetails} onChange={(event) => setShowLotDetails(event.target.checked)} />
