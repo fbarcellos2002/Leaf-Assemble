@@ -124,7 +124,7 @@ export default async function InventoryPage({ searchParams }: Props) {
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visibleItems.map(({ component, available }) => {
           const lots = component.component_lots ?? [];
-          const total = lots.reduce((sum, lot) => sum + lot.quantity_total, 0);
+          const total = lots.reduce((sum, lot) => sum + lot.quantity_total - lot.used_quantity, 0);
           const reserved = lots.reduce((sum, lot) => sum + lot.reserved_quantity, 0);
           const used = lots.reduce((sum, lot) => sum + lot.used_quantity, 0);
           return (
@@ -135,7 +135,7 @@ export default async function InventoryPage({ searchParams }: Props) {
               </div>
               <h2 className="mt-4 text-lg font-semibold text-[#153b2a] group-hover:text-[#4b8a2a]">{component.description || component.name || `${component.manufacturer} ${component.model}`}</h2>
               <div className="mt-4 flex gap-5 border-t border-[#edf1ea] pt-4 text-sm text-[#718276]">
-                <span>Total <strong className="ml-1 text-[#344b3a]">{total}</strong></span>
+                <span>Em estoque <strong className="ml-1 text-[#344b3a]">{total}</strong></span>
                 <span>Reservado <strong className="ml-1 text-[#344b3a]">{reserved}</strong></span>
                 <span>Usado <strong className="ml-1 text-[#344b3a]">{used}</strong></span>
               </div>

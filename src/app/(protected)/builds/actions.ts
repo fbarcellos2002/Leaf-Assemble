@@ -5,20 +5,25 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireActiveProfile } from "@/lib/auth/profile";
-import { evaluateCompatibility, storageInterfaceSupported, type CompatibilityPart } from "@/lib/compatibility/engine";
+import { evaluateCompatibility, type CompatibilityPart } from "@/lib/compatibility/engine";
 import { componentCategorySchema } from "@/lib/inventory/specs";
 import { createClient } from "@/lib/supabase/server";
 
 const createBuildSchema = z.object({
   name: z.string().trim().min(1).max(100),
-  notes: z.string().trim().max(1000).optional(),
+  hasObservations: z.enum(["on"]).optional(),
+  notes: z.string().trim().max(1000),
+}).refine((input) => input.hasObservations !== "on" || input.notes.length > 0, {
+  path: ["notes"],
+  message: "Descreva as observações marcadas.",
 });
 
 export async function createBuild(formData: FormData) {
   await requireActiveProfile();
   const parsed = createBuildSchema.safeParse({
     name: formData.get("name"),
-    notes: formData.get("notes"),
+    hasObservations: formData.get("hasObservations") ?? undefined,
+    notes: formData.get("notes") ?? "",
   });
   if (!parsed.success) redirect("/builds/new?error=invalid-input");
 
@@ -27,6 +32,7 @@ export async function createBuild(formData: FormData) {
     p_name: parsed.data.name,
     p_notes: parsed.data.notes ?? "",
   });
+  if (error?.code === "23505") redirect("/builds/new?error=name-taken");
   if (error || !buildId) redirect("/builds/new?error=create-failed");
   revalidatePath("/builds");
   redirect(`/builds/${buildId}`);
@@ -35,7 +41,11 @@ export async function createBuild(formData: FormData) {
 const updateBuildSchema = z.object({
   buildId: z.uuid(),
   name: z.string().trim().min(1).max(100),
+  hasObservations: z.enum(["on"]).optional(),
   notes: z.string().trim().max(1000),
+}).refine((input) => input.hasObservations !== "on" || input.notes.length > 0, {
+  path: ["notes"],
+  message: "Descreva as observações marcadas.",
 });
 
 export async function updateBuild(formData: FormData) {
@@ -43,6 +53,7 @@ export async function updateBuild(formData: FormData) {
   const parsed = updateBuildSchema.safeParse({
     buildId: formData.get("buildId"),
     name: formData.get("name"),
+    hasObservations: formData.get("hasObservations") ?? undefined,
     notes: formData.get("notes") ?? "",
   });
   if (!parsed.success) redirect("/builds?error=invalid-input");
@@ -53,6 +64,7 @@ export async function updateBuild(formData: FormData) {
     p_name: parsed.data.name,
     p_notes: parsed.data.notes,
   });
+  if (error?.code === "23505") redirect(`/builds/${parsed.data.buildId}?error=name-taken`);
   if (error) redirect(`/builds/${parsed.data.buildId}?error=update-failed`);
   revalidatePath("/builds");
   revalidatePath(`/builds/${parsed.data.buildId}`);
@@ -64,6 +76,7 @@ export async function saveBuildDraft(formData: FormData) {
   const parsed = updateBuildSchema.safeParse({
     buildId: formData.get("buildId"),
     name: formData.get("name"),
+    hasObservations: formData.get("hasObservations") ?? undefined,
     notes: formData.get("notes") ?? "",
   });
   if (!parsed.success) redirect("/builds?error=invalid-input");
@@ -74,6 +87,7 @@ export async function saveBuildDraft(formData: FormData) {
     p_name: parsed.data.name,
     p_notes: parsed.data.notes,
   });
+  if (error?.code === "23505") redirect(`/builds/${parsed.data.buildId}?error=name-taken`);
   if (error) redirect(`/builds/${parsed.data.buildId}?error=draft-save-failed`);
   revalidatePath("/builds");
   revalidatePath(`/builds/${parsed.data.buildId}`);
@@ -82,27 +96,24 @@ export async function saveBuildDraft(formData: FormData) {
 
 const removeBuildSchema = z.object({
   buildId: z.uuid(),
-  reason: z.string().trim().min(3).max(500),
+  tab: z.enum(["completed"]).optional(),
 });
 
 export async function removeBuild(formData: FormData) {
   await requireActiveProfile();
   const parsed = removeBuildSchema.safeParse({
     buildId: formData.get("buildId"),
-    reason: formData.get("reason"),
+    tab: formData.get("tab") ?? undefined,
   });
   if (!parsed.success) redirect("/builds?error=remove-failed");
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("remove_build", {
-    p_build_id: parsed.data.buildId,
-    p_reason: parsed.data.reason,
-  });
-  if (error) redirect("/builds?error=remove-failed");
+  const { error } = await supabase.rpc("remove_build", { p_build_id: parsed.data.buildId });
+  if (error) redirect(parsed.data.tab === "completed" ? "/builds?error=remove-failed&tab=completed" : "/builds?error=remove-failed");
   revalidatePath("/estoque");
   revalidatePath("/builds");
   revalidatePath(`/builds/${parsed.data.buildId}`);
-  redirect("/builds?notice=removed");
+  redirect(parsed.data.tab === "completed" ? "/builds?notice=removed&tab=completed" : "/builds?notice=removed");
 }
 
 const addComponentSchema = z.object({
@@ -192,18 +203,10 @@ export async function addBuildComponent(formData: FormData) {
     && evaluateCompatibility([selectedCpu, selectedBoard]).status === "incompatible") {
     redirect(`/builds/${parsed.data.buildId}?error=missing-prerequisite`);
   }
-  if (parsed.data.slotKey === "storage-4") {
-    const interfaces = selectedBoard?.specs.storageInterfaces;
-    const supported = Array.isArray(interfaces) ? interfaces.filter((item): item is string => typeof item === "string") : [];
-    const interfaceValue = typeof candidatePart.specs.interface === "string" ? candidatePart.specs.interface : "";
-    const formFactor = typeof candidatePart.specs.formFactor === "string" ? candidatePart.specs.formFactor.toLocaleLowerCase("pt-BR") : "";
-    if (!formFactor.startsWith("m.2") || !storageInterfaceSupported(interfaceValue, supported)) {
-      redirect(`/builds/${parsed.data.buildId}?error=incompatible`);
-    }
-  }
   const compatibility = evaluateCompatibility([...selectedParts, candidatePart]);
   if (compatibility.status === "incompatible") {
-    redirect(`/builds/${parsed.data.buildId}?error=incompatible`);
+    const hasRamLimit = compatibility.checks.some((check) => check.status === "incompatible" && check.reason.includes("suporta até") && check.reason.includes("RAM"));
+    redirect(`/builds/${parsed.data.buildId}?error=${hasRamLimit ? "ram-limit" : "incompatible"}`);
   }
   const { error } = await supabase.rpc("reserve_build_component", {
     p_build_id: parsed.data.buildId,
@@ -215,7 +218,13 @@ export async function addBuildComponent(formData: FormData) {
     p_compatibility_confirmed: true,
   });
   if (error) {
-    const code = error.code === "23514" ? "incompatible" : error.code === "23505" ? "slot-filled" : "reserve-failed";
+    const message = error.message.toLocaleLowerCase("pt-BR");
+    const code = error.code === "23514"
+      ? message.includes("selecione a placa-mãe") ? "motherboard-first"
+        : message.includes("suporta até") && message.includes("ram") ? "ram-limit"
+          : message.includes("slot") || message.includes("encaixe") ? "slot-limit"
+            : "incompatible"
+      : error.code === "23505" ? "slot-filled" : "reserve-failed";
     redirect(`/builds/${parsed.data.buildId}?error=${code}`);
   }
 
@@ -285,5 +294,6 @@ export async function completeBuild(formData: FormData) {
   if (error) redirect(`/builds/${buildId}?error=complete-failed`);
   revalidatePath("/estoque");
   revalidatePath("/builds");
-  redirect(`/builds/${buildId}?notice=completed`);
+  revalidatePath(`/builds/${buildId}`);
+  redirect("/builds?tab=completed&notice=completed");
 }

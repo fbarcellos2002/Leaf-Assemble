@@ -15,7 +15,7 @@ export default async function DashboardPage() {
   const incompleteBuilds = (builds ?? []).filter((build) => build.status === "INCOMPLETE").length;
   const inventoryMetrics = [
     ["Componentes cadastrados", inventory.components.length],
-    ["Componentes totais", inventory.totalQuantity],
+    ["Componentes em estoque", inventory.totalQuantity],
     ["Componentes disponíveis", inventory.availableQuantity],
     ["Componentes reservados", inventory.reservedQuantity],
   ];

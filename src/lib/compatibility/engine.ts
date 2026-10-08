@@ -36,7 +36,9 @@ export function storageInterfaceSupported(storageInterface: string, supportedInt
     const requestedNvme = requested.includes("nvme");
     const supportedNvme = supported.includes("nvme");
     if (requestedNvme && supportedNvme) return true;
-    return requested.includes("sata") && supported.includes("sata");
+    if (requested.includes("pcie") && supported.includes("pcie")) return true;
+    const sameSataForm = requested.includes("m.2") === supported.includes("m.2");
+    return sameSataForm && requested.includes("sata") && supported.includes("sata");
   });
 }
 
@@ -80,10 +82,14 @@ function cpuMotherboard(cpu: CompatibilityPart, board: CompatibilityPart) {
   return [socketCheck, memoryCheck];
 }
 
-function ramMotherboard(rams: CompatibilityPart[], board: CompatibilityPart) {
+function ramMotherboard(rams: CompatibilityPart[], board: CompatibilityPart, cpu?: CompatibilityPart) {
   const type = textValue(board.specs.memoryType);
   const slots = numberValue(board.specs.memorySlots);
-  const maxGb = numberValue(board.specs.maxMemoryGb);
+  const boardMaxGb = numberValue(board.specs.maxMemoryGb);
+  const cpuMaxGb = cpu ? numberValue(cpu.specs.maxMemoryCapacityGb) : undefined;
+  const maxGb = boardMaxGb !== undefined && cpuMaxGb !== undefined
+    ? Math.min(boardMaxGb, cpuMaxGb)
+    : boardMaxGb ?? cpuMaxGb;
   const frequencies = Array.isArray(board.specs.supportedMemoryFrequenciesMhz)
     ? (board.specs.supportedMemoryFrequenciesMhz as unknown[]).filter((value): value is number => typeof value === "number")
     : undefined;
@@ -99,7 +105,8 @@ function ramMotherboard(rams: CompatibilityPart[], board: CompatibilityPart) {
     ? capacities.reduce((sum, value) => sum + value, 0)
     : undefined;
   if (totalCapacity !== undefined && maxGb !== undefined && totalCapacity > maxGb) {
-    return [result("incompatible", "A capacidade de memória excede o limite da placa-mãe.", [...rams, board], `${totalCapacity} GB para máximo de ${maxGb} GB`)];
+    const limitingPart = cpuMaxGb !== undefined && (boardMaxGb === undefined || cpuMaxGb < boardMaxGb) ? "O processador" : "A placa-mãe";
+    return [result("incompatible", `${limitingPart} suporta até ${maxGb} GB de RAM.`, [...rams, board, ...(cpu ? [cpu] : [])], `${totalCapacity} GB selecionados; limite efetivo de ${maxGb} GB`)];
   }
 
   const results: CompatibilityResult[] = [];
@@ -126,7 +133,7 @@ function ramMotherboard(rams: CompatibilityPart[], board: CompatibilityPart) {
   }
 
   if (slots === undefined || maxGb === undefined) {
-    results.push(result("unknown", "Slots ou capacidade máxima de memória não informados.", [...rams, board]));
+    results.push(result("unknown", "Slots ou capacidade máxima de memória não informados.", [...rams, board, ...(cpu ? [cpu] : [])]));
   }
   return results;
 }
@@ -187,7 +194,17 @@ function motherboardCase(board: CompatibilityPart, pcCase: CompatibilityPart) {
   if (!formFactor || !supported) {
     return result("unknown", "Formato da placa-mãe ou formatos suportados pelo gabinete não informado.", [board, pcCase]);
   }
-  if (!supported.some((item) => normalized(item) === normalized(formFactor))) {
+  const formFactorRank = (value: string) => {
+    const valueNormalized = normalized(value);
+    if (valueNormalized.includes("xl-atx")) return 5;
+    if (valueNormalized.includes("e-atx")) return 4;
+    if (valueNormalized === "atx") return 3;
+    if (valueNormalized.includes("m-atx")) return 2;
+    if (valueNormalized.includes("mini-itx") || valueNormalized.includes("mini-dtx")) return 1;
+    return 0;
+  };
+  const boardRank = formFactorRank(formFactor);
+  if (!supported.some((item) => normalized(item) === normalized(formFactor) || formFactorRank(item) >= boardRank && boardRank > 0)) {
     return result("incompatible", "O formato da placa-mãe não é suportado pelo gabinete.", [board, pcCase], `${formFactor}; suporta ${supported.join(", ")}`);
   }
   return result("compatible", "O gabinete suporta o formato da placa-mãe.", [board, pcCase], formFactor);
@@ -218,6 +235,7 @@ function storageMotherboard(storage: CompatibilityPart, board: CompatibilityPart
 }
 
 function powerSupply(psu: CompatibilityPart, cpu?: CompatibilityPart, gpus: CompatibilityPart[] = []) {
+  if (cpu && gpus.length === 0) return [];
   const wattage = numberValue(psu.specs.wattageW);
   const components = [psu, ...(cpu ? [cpu] : []), ...gpus];
   if (wattage === undefined) {
@@ -275,7 +293,7 @@ export function evaluateCompatibility(parts: CompatibilityPart[]) {
 
   for (const cpu of cpus) for (const board of boards) checks.push(...cpuMotherboard(cpu, board));
   for (const cpu of cpus) for (const ram of rams) checks.push(...cpuRamFrequency(cpu, ram));
-  for (const board of boards) checks.push(...ramMotherboard(rams, board));
+  for (const board of boards) checks.push(...ramMotherboard(rams, board, cpus[0]));
   checks.push(...ramCombination(rams));
   for (const cooler of coolers) {
     for (const cpu of cpus) {

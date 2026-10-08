@@ -27,9 +27,9 @@ export const loadInventorySnapshot = cache(async () => {
         id: lot.id,
         lotCode: lot.lot_code ?? null,
         available: lot.available_quantity,
-        total: lot.quantity_total,
         reserved: lot.reserved_quantity,
         used: lot.used_quantity,
+        total: lot.available_quantity + lot.reserved_quantity,
       })),
     }];
   });

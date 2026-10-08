@@ -51,7 +51,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
   if (error || !component) notFound();
 
   const lots = [...(component.component_lots ?? [])].sort((a, b) => (a.lot_code ?? "").localeCompare(b.lot_code ?? ""));
-  const total = lots.reduce((sum, lot) => sum + lot.quantity_total, 0);
+  const total = lots.reduce((sum, lot) => sum + lot.available_quantity + lot.reserved_quantity, 0);
   const available = lots.reduce((sum, lot) => sum + lot.available_quantity, 0);
   const reserved = lots.reduce((sum, lot) => sum + lot.reserved_quantity, 0);
   const used = lots.reduce((sum, lot) => sum + lot.used_quantity, 0);
@@ -89,7 +89,7 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
 
       <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Total", total],
+          ["Em estoque", total],
           ["Disponível", available],
           ["Reservado", reserved],
           ["Alocado/Usado", used],
@@ -128,12 +128,12 @@ export default async function ComponentDetailPage({ params, searchParams }: Prop
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[620px] text-left text-sm">
               <thead className="text-xs tracking-wide text-[#718276] uppercase">
-                <tr><th className="pb-3 pr-4">Lote</th><th className="pb-3 pr-4">Total</th><th className="pb-3 pr-4">Disponível</th><th className="pb-3 pr-4">Reservado</th><th className="pb-3 pr-4">Usado</th>{profile.role === "ADMIN" ? <th className="pb-3">Remover</th> : null}</tr>
+                <tr><th className="pb-3 pr-4">Lote</th><th className="pb-3 pr-4">Em estoque</th><th className="pb-3 pr-4">Disponível</th><th className="pb-3 pr-4">Reservado</th><th className="pb-3 pr-4">Usado</th>{profile.role === "ADMIN" ? <th className="pb-3">Remover</th> : null}</tr>
               </thead>
               <tbody className="divide-y divide-[#edf1ea]">
                 {lots.map((lot) => <tr key={lot.id}>
                   <td className="py-3 pr-4 font-medium text-[#294333]">{lot.lot_code || "Sem identificação"}{lot.notes ? <p className="mt-1 max-w-56 whitespace-normal text-xs font-normal text-[#718276]">{lot.notes}</p> : null}</td>
-                  <td className="py-3 pr-4 text-[#607266]">{lot.quantity_total}</td>
+                  <td className="py-3 pr-4 text-[#607266]">{lot.available_quantity + lot.reserved_quantity}</td>
                   <td className="py-3 pr-4 text-[#315b3c]">{lot.available_quantity}</td>
                   <td className="py-3 pr-4 text-[#607266]">{lot.reserved_quantity}</td>
                   <td className="py-3 text-[#607266]">{lot.used_quantity}</td>
