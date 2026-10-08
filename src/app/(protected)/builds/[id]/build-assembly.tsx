@@ -267,7 +267,7 @@ function CaseIllustration({
           aria-pressed={selected}
           title={installedBySlot[slot.slot]?.description ?? slot.label}
           style={{ left: `${point.x / 900 * 100}%`, top: `${point.y / 640 * 100}%`, width: `${(point.width ?? 90) / 900 * 100}%` }}
-          className={`absolute z-10 -translate-y-1/2 truncate rounded-md border px-1.5 py-1 text-center text-[7px] font-extrabold leading-none shadow-lg transition sm:px-2 sm:py-1.5 sm:text-[10px] ${selected ? "border-white bg-[#ed6a32] text-white ring-2 ring-[#f9c18b]/70" : installed ? "border-[#8fe0e7] bg-[#137b8a]/95 text-white hover:bg-[#1593a1]" : "border-[#b7c6d6] bg-[#202c3d]/95 text-[#f1f5f9] hover:border-[#f4a16b] hover:bg-[#36485e]"} disabled:cursor-not-allowed disabled:opacity-45`}
+          className={`absolute z-10 -translate-y-1/2 whitespace-normal break-words rounded-md border px-1.5 py-1 text-center text-[7px] font-extrabold leading-tight shadow-lg transition sm:px-2 sm:py-1.5 sm:text-[10px] xl:px-2.5 xl:py-2 xl:text-xs ${selected ? "border-white bg-[#ed6a32] text-white ring-2 ring-[#f9c18b]/70" : installed ? "border-[#8fe0e7] bg-[#137b8a]/95 text-white hover:bg-[#1593a1]" : "border-[#b7c6d6] bg-[#202c3d]/95 text-[#f1f5f9] hover:border-[#f4a16b] hover:bg-[#36485e]"} disabled:cursor-not-allowed disabled:opacity-45`}
         >
           {installed ? `✓ ${label}` : `+ ${label}`}
         </button>;
@@ -315,7 +315,7 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
   ].filter((group) => group.slots.length > 0);
 
   return (
-    <section className="mt-7 overflow-hidden rounded-[2rem] border border-[#d5dce5] bg-white shadow-[0_16px_42px_rgba(22,34,51,.12)]">
+    <section className="mt-7 overflow-hidden rounded-[2rem] border border-[#d5dce5] bg-white shadow-[0_16px_42px_rgba(22,34,51,.12)] xl:relative xl:left-1/2 xl:w-[min(96vw,1800px)] xl:max-w-none xl:-translate-x-1/2">
       <div className="flex flex-col justify-between gap-4 border-b border-[#e5eaf0] bg-[linear-gradient(110deg,#f7f9fc,#edf2f7)] px-5 py-5 sm:flex-row sm:items-center sm:px-7">
         <div>
           <p className="text-[11px] font-extrabold tracking-[.18em] text-[#d65c2b] uppercase">Workbench · interactive</p>
@@ -329,7 +329,7 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
         </div>
       </div>
 
-      <div className="grid min-w-0 xl:grid-cols-[minmax(0,1.9fr)_minmax(320px,.72fr)]">
+      <div className="grid min-w-0 xl:grid-cols-[minmax(0,2fr)_minmax(420px,.8fr)]">
         <div className="min-w-0 border-b border-[#e5eaf0] bg-[#172130] p-3 sm:p-6 xl:border-r xl:border-b-0">
           <CaseIllustration
             slots={slots}
@@ -351,7 +351,7 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
             {groupedSlots.map((group) => (
               <div key={group.title}>
                 <p className="mb-2 text-xs font-bold text-[#435166]">{group.title}</p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                   {group.slots.map((slot) => {
                     const installed = installedBySlot[slot.slot];
                     const selected = selectedSlot === slot.slot;
@@ -360,15 +360,15 @@ export function BuildAssembly({ buildId, slots, optionsBySlot, installedBySlot, 
                       type="button"
                       disabled={!slot.selectable && !installed}
                       onClick={() => selectSlot(slot.slot)}
-                      className={`min-w-0 rounded-xl border px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border-[#e87742] bg-[#fff3eb] ring-2 ring-[#f8b48f]/45" : installed ? "border-[#92dce2] bg-[#eefbfc] hover:border-[#52bdc7]" : "border-[#dbe2ea] bg-[#fbfcfe] hover:border-[#a4b4c6]"}`}
+                      className={`min-w-0 rounded-xl border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border-[#e87742] bg-[#fff3eb] ring-2 ring-[#f8b48f]/45" : installed ? "border-[#92dce2] bg-[#eefbfc] hover:border-[#52bdc7]" : "border-[#dbe2ea] bg-[#fbfcfe] hover:border-[#a4b4c6]"}`}
                     >
                       <span className="flex items-center justify-between gap-2">
-                        <span className="truncate text-xs font-bold text-[#263448]">{slot.label}</span>
+                        <span className="min-w-0 break-words text-xs font-bold leading-5 text-[#263448] xl:text-sm">{slot.label}</span>
                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-extrabold ${installed ? "bg-[#d8f4f5] text-[#116976]" : slot.selectable ? "bg-[#fff0e7] text-[#a94720]" : "bg-[#e7ebef] text-[#758194]"}`}>
                           {installed ? "INSTALADO" : slot.selectable ? "LIVRE" : "BLOQUEADO"}
                         </span>
                       </span>
-                      <span className="mt-1 block truncate text-[10px] text-[#778396]">{installed?.description ?? (slot.selectable ? "Clique para selecionar peça e lote" : "Aguardando placa-mãe / plataforma")}</span>
+                      <span className="mt-1 block break-words text-[10px] leading-4 text-[#778396] xl:text-xs">{installed?.description ?? (slot.selectable ? "Clique para selecionar peça e lote" : "Aguardando placa-mãe / plataforma")}</span>
                     </button>;
                   })}
                 </div>
