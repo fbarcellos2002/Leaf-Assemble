@@ -86,7 +86,7 @@ export default async function BuildsPage({ searchParams }: Props) {
     .select("id, name, status, created_by, created_at, updated_at, build_components(id, is_active, quantity, components(category, manufacturer, name, model, description, specs))")
     .is("removed_at", null)
     .order("updated_at", { ascending: false }), supabase.rpc("user_directory")]);
-  const creatorNames = new Map((directory ?? []).map((person) => [person.id, person.name] as const));
+  const creatorNames = new Map((directory ?? []).map((person: { id: string; name: string }) => [person.id, person.name] as const));
   const allBuilds = builds ?? [];
   const incompleteBuilds = allBuilds.filter((build) => build.status !== "COMPLETED");
   const completedBuilds = allBuilds.filter((build) => build.status === "COMPLETED");

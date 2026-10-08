@@ -234,8 +234,8 @@ function storageMotherboard(storage: CompatibilityPart, board: CompatibilityPart
   return result("compatible", "A interface do armazenamento é suportada.", [storage, board], storageInterface);
 }
 
-function powerSupply(psu: CompatibilityPart, cpu?: CompatibilityPart, gpus: CompatibilityPart[] = []) {
-  if (cpu && gpus.length === 0) return [];
+function powerSupply(psu: CompatibilityPart, cpu?: CompatibilityPart, gpus: CompatibilityPart[] = []): CompatibilityResult | null {
+  if (cpu && gpus.length === 0) return null;
   const wattage = numberValue(psu.specs.wattageW);
   const components = [psu, ...(cpu ? [cpu] : []), ...gpus];
   if (wattage === undefined) {
@@ -308,7 +308,10 @@ export function evaluateCompatibility(parts: CompatibilityPart[]) {
   for (const board of boards) for (const pcCase of cases) checks.push(motherboardCase(board, pcCase));
   for (const psu of psus) for (const pcCase of cases) checks.push(psuCase(psu, pcCase));
   for (const storage of storages) for (const board of boards) checks.push(storageMotherboard(storage, board));
-  for (const psu of psus) checks.push(powerSupply(psu, cpus[0], gpus));
+  for (const psu of psus) {
+    const powerCheck = powerSupply(psu, cpus[0], gpus);
+    if (powerCheck) checks.push(powerCheck);
+  }
 
   const overall = [...checks].sort((a, b) => statusPriority[b.status] - statusPriority[a.status])[0]?.status ?? "unknown";
   return { status: overall, checks };

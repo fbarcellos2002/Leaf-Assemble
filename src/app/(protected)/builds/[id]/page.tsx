@@ -68,7 +68,7 @@ export default async function BuildDetailPage({ params, searchParams }: Props) {
     supabase.rpc("user_directory"),
   ]);
   if (!build || build.removed_at) notFound();
-  const builderName = directory?.find((person) => person.id === build.created_by)?.name ?? "Usuário";
+  const builderName = directory?.find((person: { id: string; name: string }) => person.id === build.created_by)?.name ?? "Usuário";
 
   const allBuildItems = buildItems ?? [];
   const activeBuildItems = allBuildItems.filter((item) => item.is_active);
