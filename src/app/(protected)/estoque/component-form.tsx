@@ -15,7 +15,7 @@ import {
 } from "@/lib/inventory/specs";
 import { generateComponentDescription } from "@/lib/inventory/description";
 
-type FormState = { error: "invalid-input" | "invalid-specs" | "save-failed" | null };
+type FormState = { error: "invalid-input" | "invalid-specs" | "save-failed" | null; detail?: string };
 type SocketOptions = { Intel: readonly string[]; AMD: readonly string[] };
 type Props = {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
@@ -488,7 +488,7 @@ export function ComponentForm({ action, socketChoicesByManufacturer = defaultSoc
             ? "Confira os campos obrigatórios e os valores informados. Os dados preenchidos foram mantidos."
             : formState.error === "invalid-specs"
               ? "Revise as especificações técnicas. Os dados preenchidos foram mantidos."
-              : "Não foi possível cadastrar a peça. Os dados preenchidos foram mantidos; tente novamente."}
+              : `Não foi possível cadastrar a peça. ${formState.detail ?? "Os dados preenchidos foram mantidos; tente novamente."}`}
         </p>
       ) : null}
       <div className="max-w-xl">

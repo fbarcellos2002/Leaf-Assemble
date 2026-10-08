@@ -28,7 +28,7 @@ const componentFieldsSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
-export type CreateComponentState = { error: "invalid-input" | "invalid-specs" | "save-failed" | null };
+export type CreateComponentState = { error: "invalid-input" | "invalid-specs" | "save-failed" | null; detail?: string };
 
 export async function createComponent(_state: CreateComponentState, formData: FormData): Promise<CreateComponentState> {
   await requireAdminProfile();
@@ -158,13 +158,15 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
     if (typeof base !== "string" || (base !== "Genérico" && !allSockets.includes(base))) return { error: "invalid-specs" };
     if (base === "Genérico") {
       if (rawSpecs.socketAdapter === true || (Array.isArray(adapters) && adapters.length > 0)) return { error: "invalid-specs" };
-      delete rawSpecs.socketAdapter;
+      rawSpecs.socketAdapter = false;
       delete rawSpecs.adapterSockets;
+      rawSpecs.supportedSockets = allSockets;
     } else {
       if (typeof rawSpecs.socketAdapter !== "boolean") return { error: "invalid-specs" };
       if (rawSpecs.socketAdapter === true) {
         if (!Array.isArray(adapters) || adapters.length === 0 || adapters.some((socket) => typeof socket !== "string" || !allSockets.includes(socket) || socket === base)) return { error: "invalid-specs" };
       } else if (Array.isArray(adapters) && adapters.length > 0) return { error: "invalid-specs" };
+      rawSpecs.supportedSockets = [base, ...(rawSpecs.socketAdapter === true && Array.isArray(adapters) ? adapters : [])];
     }
     if (typeof rawSpecs.coolerType !== "string" || !(specChoices.CPU_COOLER?.coolerType ?? []).includes(rawSpecs.coolerType)) return { error: "invalid-specs" };
   }
@@ -197,7 +199,7 @@ export async function createComponent(_state: CreateComponentState, formData: Fo
     p_notes: fields.data.notes ?? "",
   });
 
-  if (error || !componentId) return { error: "save-failed" };
+  if (error || !componentId) return { error: "save-failed", detail: error?.message ?? "O banco não retornou o identificador da peça criada." };
   revalidatePath("/estoque");
   redirect("/estoque/novo?created=1");
 }
